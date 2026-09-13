@@ -124,6 +124,329 @@ void main() {
     },
   );
 
+  testWidgets('daily summary shows local totals for the signed-in worker', (
+    tester,
+  ) async {
+    await tester.runAsync(
+      () => session.signIn('Alice', 'password1', register: true),
+    );
+    final first = await tester.runAsync(
+      () => repo.createHotspot(name: 'Summary A'),
+    );
+    final second = await tester.runAsync(
+      () => repo.createHotspot(name: 'Summary B'),
+    );
+    await tester.runAsync(() async {
+      await repo.createEncounter({
+        'hotspot_id': first,
+        'client_code': '2026/MY/0001',
+        'client_kind': 'New',
+        'hiv': 'Reactive',
+        'dist_3cc': 2,
+        'dist_condom': 5,
+        'recollect_lds': 1,
+        'refer_dic': 1,
+      });
+      await repo.createEncounter({
+        'hotspot_id': second,
+        'client_code': '2026/MY/0001',
+        'client_kind': 'Old',
+        'hiv': 'Non reactive',
+        'dist_3cc': 3,
+      });
+      await repo.createEncounter({
+        'hotspot_id': first,
+        'client_code': '2026/MY/0002',
+        'syphilis': 'Reactive',
+      });
+    });
+    await tester.pumpWidget(
+      OutreachApp(
+        session: session,
+        hasAccounts: true,
+        location: HotspotLocationService(gateway: gps),
+      ),
+    );
+    await tap(tester, find.byKey(const ValueKey('open-daily-summary')));
+    expect(find.text('Daily summary'), findsOneWidget);
+    expect(find.text('Hotspots'), findsOneWidget);
+    expect(find.text('Records'), findsOneWidget);
+    expect(find.text('Unique people'), findsOneWidget);
+    expect(find.text('DIC referrals'), findsOneWidget);
+    await tester.scrollUntilVisible(
+      find.text('HIV tested'),
+      200,
+      scrollable: find.byType(Scrollable).last,
+    );
+    expect(find.text('HIV tested'), findsOneWidget);
+    expect(find.text('Syphilis reactive'), findsOneWidget);
+    await tester.scrollUntilVisible(
+      find.text('Condom'),
+      200,
+      scrollable: find.byType(Scrollable).last,
+    );
+    expect(find.text('Condom'), findsOneWidget);
+    await tester.scrollUntilVisible(
+      find.text('Recollection'),
+      200,
+      scrollable: find.byType(Scrollable).last,
+    );
+    expect(find.text('Recollection'), findsOneWidget);
+    session.logout();
+  });
+
+  testWidgets('sync status shows pending changes without enabling upload', (
+    tester,
+  ) async {
+    await tester.runAsync(
+      () => session.signIn('Alice', 'password1', register: true),
+    );
+    final site = await tester.runAsync(
+      () => repo.createHotspot(name: 'Sync Site'),
+    );
+    await tester.runAsync(
+      () => repo.createEncounter({
+        'hotspot_id': site,
+        'client_code': '2026/MY/0077',
+      }),
+    );
+    await tester.pumpWidget(
+      OutreachApp(
+        session: session,
+        hasAccounts: true,
+        location: HotspotLocationService(gateway: gps),
+      ),
+    );
+    await tap(tester, find.byKey(const ValueKey('open-sync-status')));
+    expect(find.text('Sync status'), findsOneWidget);
+    expect(find.text('Desktop connection'), findsOneWidget);
+    expect(
+      find.textContaining('checking pending changes only'),
+      findsOneWidget,
+    );
+    expect(find.text('Pending changes'), findsOneWidget);
+    expect(find.text('3'), findsOneWidget);
+    expect(find.text('Not configured'), findsOneWidget);
+    expect(find.text('Dashboard'), findsOneWidget);
+    expect(find.text('Address'), findsOneWidget);
+    expect(find.text('Paired at'), findsOneWidget);
+    expect(find.text('Sync readiness'), findsOneWidget);
+    expect(find.text('Dashboard address saved'), findsOneWidget);
+    expect(find.text('Dashboard paired'), findsOneWidget);
+    expect(find.text('Ready to sync'), findsOneWidget);
+    expect(find.text('Pending details'), findsOneWidget);
+    expect(find.text('Worker changes'), findsOneWidget);
+    expect(find.text('Hotspot changes'), findsOneWidget);
+    expect(find.text('Client record changes'), findsOneWidget);
+    expect(find.text('ANSVK Outreach'), findsWidgets);
+    expect(find.text('View pending changes'), findsOneWidget);
+    await tap(tester, find.byKey(const ValueKey('view-pending-changes')));
+    expect(find.text('Pending changes'), findsOneWidget);
+    expect(find.text('Create worker account'), findsOneWidget);
+    expect(find.text('Create hotspot'), findsOneWidget);
+    expect(find.text('Create client record'), findsOneWidget);
+    await tester.pageBack();
+    await tester.pumpAndSettle();
+    expect(find.text('Sync status'), findsOneWidget);
+    expect(find.text('Set dashboard address'), findsOneWidget);
+    expect(find.text('Sync unavailable until dashboard setup'), findsOneWidget);
+    await tap(
+      tester,
+      find.byKey(const ValueKey('configure-dashboard-address')),
+    );
+    expect(find.text('Dashboard address'), findsOneWidget);
+    expect(find.text('Save address only'), findsOneWidget);
+    await tester.enterText(
+      find.byKey(const ValueKey('dashboard-address')),
+      'http://192.168.1.20:8080/api/v1',
+    );
+    await tap(tester, find.byKey(const ValueKey('save-dashboard-address')));
+    expect(find.text('Sync status'), findsOneWidget);
+    expect(find.text('http://192.168.1.20:8080/api/v1'), findsOneWidget);
+    expect(find.text('Not configured'), findsOneWidget);
+    expect(find.text('Dashboard address saved'), findsOneWidget);
+    await tap(
+      tester,
+      find.byKey(const ValueKey('configure-dashboard-address')),
+    );
+    expect(find.text('Clear saved address'), findsOneWidget);
+    await tap(tester, find.byKey(const ValueKey('clear-dashboard-address')));
+    expect(find.text('Sync status'), findsOneWidget);
+    expect(find.text('http://192.168.1.20:8080/api/v1'), findsNothing);
+    session.logout();
+  });
+
+  testWidgets('today records list opens a read-only detail page', (
+    tester,
+  ) async {
+    await tester.runAsync(
+      () => session.signIn('Alice', 'password1', register: true),
+    );
+    final site = await tester.runAsync(
+      () => repo.createHotspot(name: 'Detail Site'),
+    );
+    await tester.runAsync(
+      () => repo.createEncounter({
+        'hotspot_id': site,
+        'client_code': '2026/MY/0042',
+        'client_kind': 'New',
+        'hiv': 'Reactive',
+        'hcv': 'Non reactive',
+        'dist_3cc': 2,
+        'dist_condom': 5,
+        'recollect_lds': 1,
+        'refer_dic': 1,
+        'remark': 'Needs follow up',
+      }),
+    );
+    await tester.pumpWidget(
+      OutreachApp(
+        session: session,
+        hasAccounts: true,
+        location: HotspotLocationService(gateway: gps),
+      ),
+    );
+    await tap(tester, find.byKey(const ValueKey('open-today-records')));
+    expect(find.text("Today's records"), findsOneWidget);
+    expect(find.text('2026/MY/0042'), findsOneWidget);
+    expect(find.textContaining('Detail Site'), findsOneWidget);
+    expect(find.textContaining('Tested HIV, HCV'), findsOneWidget);
+    await tap(tester, find.text('2026/MY/0042'));
+    expect(find.text('Record detail'), findsOneWidget);
+    expect(find.text('Client'), findsOneWidget);
+    expect(find.text('Testing'), findsOneWidget);
+    expect(find.text('Reactive'), findsOneWidget);
+    await tester.scrollUntilVisible(
+      find.text('Needs follow up'),
+      200,
+      scrollable: find.byType(Scrollable).last,
+    );
+    expect(find.text('Needs follow up'), findsOneWidget);
+    session.logout();
+  });
+
+  testWidgets('record detail soft deletes after confirmation', (tester) async {
+    await tester.runAsync(
+      () => session.signIn('Alice', 'password1', register: true),
+    );
+    final site = await tester.runAsync(
+      () => repo.createHotspot(name: 'Delete Site'),
+    );
+    final id = await tester.runAsync(
+      () => repo.createEncounter({
+        'hotspot_id': site,
+        'client_code': '2026/MY/0099',
+        'hiv': 'Reactive',
+      }),
+    );
+    await tester.pumpWidget(
+      OutreachApp(
+        session: session,
+        hasAccounts: true,
+        location: HotspotLocationService(gateway: gps),
+      ),
+    );
+    await tap(tester, find.byKey(const ValueKey('open-today-records')));
+    await tap(tester, find.text('2026/MY/0099'));
+    await tester.scrollUntilVisible(
+      find.byKey(const ValueKey('delete-record')),
+      200,
+      scrollable: find.byType(Scrollable).last,
+    );
+    await tap(tester, find.byKey(const ValueKey('delete-record')));
+    expect(find.text('Delete record?'), findsOneWidget);
+    await tap(tester, find.byKey(const ValueKey('confirm-delete-record')));
+    expect(find.text("Today's records"), findsOneWidget);
+    expect(find.text('2026/MY/0099'), findsNothing);
+    expect(find.text('No client records saved today.'), findsOneWidget);
+    expect(await tester.runAsync(repo.todayEncounters), isEmpty);
+    expect(await tester.runAsync(() => repo.encounter(id!)), isNull);
+    final operations = await tester.runAsync(repo.pendingOperations);
+    expect(operations!.where((row) => row['action'] == 'delete'), hasLength(1));
+    session.logout();
+  });
+
+  testWidgets('record detail edits saved fields and returns to today list', (
+    tester,
+  ) async {
+    await tester.runAsync(
+      () => session.signIn('Alice', 'password1', register: true),
+    );
+    final site = await tester.runAsync(
+      () => repo.createHotspot(name: 'Edit Site'),
+    );
+    final id = await tester.runAsync(
+      () => repo.createEncounter({
+        'hotspot_id': site,
+        'client_code': '2026/MY/0088',
+        'hiv': 'No',
+        'dist_3cc': 1,
+        'remark': 'Before edit',
+      }),
+    );
+    await tester.pumpWidget(
+      OutreachApp(
+        session: session,
+        hasAccounts: true,
+        location: HotspotLocationService(gateway: gps),
+      ),
+    );
+    await tap(tester, find.byKey(const ValueKey('open-today-records')));
+    await tap(tester, find.text('2026/MY/0088'));
+    await tester.scrollUntilVisible(
+      find.byKey(const ValueKey('edit-record')),
+      200,
+      scrollable: find.byType(Scrollable).last,
+    );
+    await tap(tester, find.byKey(const ValueKey('edit-record')));
+    expect(find.text('Edit record'), findsOneWidget);
+    expect(
+      find.text('Client code cannot be changed while editing.'),
+      findsOneWidget,
+    );
+    final editScroll = find
+        .descendant(
+          of: find.byKey(const ValueKey('client-entry-scroll')),
+          matching: find.byType(Scrollable),
+        )
+        .first;
+    await tap(tester, find.text('Old'));
+    await tester.scrollUntilVisible(
+      find.byKey(const ValueKey('test-HIV')),
+      200,
+      scrollable: editScroll,
+    );
+    await tap(tester, find.byKey(const ValueKey('test-HIV')));
+    await tap(tester, find.text('Reactive').last);
+    await tester.scrollUntilVisible(
+      find.byKey(const ValueKey('quantity-dist_3cc')),
+      200,
+      scrollable: editScroll,
+    );
+    await tester.enterText(
+      find.byKey(const ValueKey('quantity-dist_3cc')),
+      '4',
+    );
+    await tester.scrollUntilVisible(
+      find.byKey(const ValueKey('remark')),
+      200,
+      scrollable: editScroll,
+    );
+    await tester.enterText(find.byKey(const ValueKey('remark')), 'After edit');
+    await tap(tester, find.byKey(const ValueKey('update-record-top')));
+    expect(find.text("Today's records"), findsOneWidget);
+    expect(find.textContaining('Edit Site - Old - Tested HIV'), findsOneWidget);
+    final record = await tester.runAsync(() => repo.encounter(id!));
+    expect(record!['client_kind'], 'Old');
+    expect(record['hiv'], 'Reactive');
+    expect(record['dist_3cc'], 4);
+    expect(record['remark'], 'After edit');
+    expect(record['revision'], 2);
+    final operations = await tester.runAsync(repo.pendingOperations);
+    expect(operations!.where((row) => row['action'] == 'update'), hasLength(1));
+    session.logout();
+  });
+
   testWidgets(
     'draft survives lock and failed permission; other account has an empty list',
     (tester) async {

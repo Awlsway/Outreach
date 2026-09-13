@@ -1,19 +1,19 @@
 # ANSVK Outreach decisions and delivery tracking
 
-Updated: 10 September 2026.
+Updated: 12 September 2026.
 
 ## Current status
 
-M1 is complete as a planning baseline. SQLite schema version 2, accounts/locking, and hotspot search/creation with typed peers and GPS fallback are implemented. Hotspot tests cover simulated GPS, saved data, search, lock/draft preservation and worker isolation. GPS success/fallback persistence has been confirmed from the user's phone database. Database encryption/recovery remain pre-pilot work. Client-entry screens and production sync remain unimplemented. Final verification and device evidence are tracked in 05_build_status.md.
+M1 is complete as a planning baseline. SQLite schema version 4, accounts/locking, hotspot search/creation with typed peers and GPS fallback, client encounter creation, phone-side daily summary, today's record list/detail, record delete, record edit and a sync-status placeholder are implemented. Schema version 3 adds local app/project/device identity for future dashboard sync; schema version 4 adds local dashboard connection state. Hotspot tests cover simulated GPS, saved data, search, lock/draft preservation and worker isolation. GPS success/fallback persistence has been confirmed from the user's phone database. Client-entry tests cover fields, default values, validation, duplicate prevention and reset after save. Daily summary tests cover signed-in worker totals and unique people by client code. Today's records tests cover signed-in worker list/detail navigation, soft-delete and edit update. Database encryption/recovery remain pre-pilot work. Production sync remains unimplemented. Final verification and device evidence are tracked in 05_build_status.md.
 
 | Milestone | Status | Evidence / next action |
 | --- | --- | --- |
 | M1 Requirements | Complete (planning baseline) | Requirements, acceptance checks, field dictionary and explicit defaults documented |
-| M2 Foundation | In progress | SQLite schema v2 and password verifiers implemented; database encryption/recovery remain pending |
+| M2 Foundation | In progress | SQLite schema v4, app identity, dashboard connection state and password verifiers implemented; database encryption/recovery remain pending |
 | M3 Accounts/hotspots | Complete for development increment | User confirmed hotspot phone results; read-only database verification passed; see 05_build_status.md and 08_hotspots.md |
-| M4 Encounters | Not started | Depends on M3 and field decisions |
-| M5 Summary | Not started | Depends on M4; D02 resolved |
-| M6 Sync preparation | Not started | Depends on M4; desktop integration remains external |
+| M4 Encounters | Complete for development increment | Create/save form, today's list/detail, delete and edit implemented |
+| M5 Summary | Complete for development increment | Phone-side Daily Summary implemented and tested; future report export remains desktop scope |
+| M6 Sync preparation | Status placeholder implemented; architecture and API contract drafted | See 12_sync_architecture_decision.md and 13_dashboard_api_contract.md; next APK step is pairing/address design before real sync |
 | M7 Pilot/release | Not started | Requires completed implementation and real-device evidence |
 
 ## Open decisions
@@ -50,6 +50,7 @@ The entries below preserve the original questions. 04_development_specification.
 - Manual future LAN sync; no other workers' records downloaded.
 - Seven-day client retention only after successful sync; hotspots remain; desktop retains history.
 - Windows dashboard is a separate project.
+- Sync channel is Android APK to Windows dashboard over the office local network using a dashboard-hosted local HTTP API, with manual worker-triggered upload and per-operation acknowledgement.
 
 ## Risks and responses
 
@@ -66,4 +67,4 @@ The entries below preserve the original questions. 04_development_specification.
 
 ## Next work package
 
-Hotspot implementation and phone database verification are complete for this increment. The next separate feature is client encounter entry under the selected hotspot, including the New-client modal and existing duplicate rules. Database encryption/recovery remain pre-pilot requirements. No client-entry or desktop work is included in this hotspot increment.
+Client encounter creation, daily summary, today's list/detail, record delete, record edit and sync-status placeholder are complete for this increment. Sync architecture is locked in 12_sync_architecture_decision.md, and the future dashboard API handover contract is drafted in 13_dashboard_api_contract.md. The next APK sync step is pairing/address design before real upload. Database encryption/recovery remain pre-pilot requirements. Desktop sync remains a separate future integration.

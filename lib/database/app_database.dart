@@ -6,7 +6,7 @@ import 'schema.dart';
 class AppDatabase {
   AppDatabase._(this.connection);
 
-  static const schemaVersion = 2;
+  static const schemaVersion = 4;
   static const filename = 'ansvk_outreach.db';
 
   /// Infrastructure access only. Screens should use worker-scoped repositories.

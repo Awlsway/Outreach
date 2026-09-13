@@ -1,10 +1,24 @@
-import 'package:flutter/material.dart' hide Row;
+import 'package:flutter/material.dart';
 import '../auth/session_controller.dart';
-import '../database/outreach_repository.dart';
+import '../database/outreach_repository.dart' as data;
+import '../encounters/encounter_form.dart';
 import 'location_service.dart';
 import 'new_hotspot_form.dart';
 
-enum _Page { home, list, create, detail }
+enum _Page {
+  home,
+  list,
+  create,
+  detail,
+  encounter,
+  summary,
+  records,
+  recordDetail,
+  editRecord,
+  sync,
+  dashboardAddress,
+  pendingChanges,
+}
 
 /// Internal pages stay inside the app's session/lock boundary. They do not push
 /// unguarded routes above the lock screen.
@@ -21,23 +35,41 @@ class HotspotWorkspace extends StatefulWidget {
 }
 
 class _HotspotWorkspaceState extends State<HotspotWorkspace> {
-  late final _repository = OutreachRepository(
+  late final _repository = data.OutreachRepository(
     widget.session.auth.database,
     currentWorkerId: () => widget.session.currentWorkerId,
   );
   final _search = TextEditingController();
+  final _dashboardUrl = TextEditingController();
   _Page _page = _Page.home;
-  List<Row> _rows = [];
-  Row? _selected;
+  List<data.Row> _rows = [];
+  data.Row? _selected;
+  data.Row? _selectedRecord;
+  List<data.Row> _records = [];
+  data.Row? _summary;
+  data.Row? _syncStatus;
+  List<data.Row> _pendingChanges = [];
   bool _loading = false;
+  bool _recordsLoading = false;
+  bool _summaryLoading = false;
+  bool _syncLoading = false;
+  bool _pendingChangesLoading = false;
+  bool _savingDashboardAddress = false;
+  bool _deletingRecord = false;
   bool _saved = false;
   String? _error;
+  String? _recordsError;
+  String? _summaryError;
+  String? _syncError;
+  String? _pendingChangesError;
+  String? _dashboardAddressError;
   int _query = 0;
 
   @override
   void dispose() {
     _query++;
     _search.dispose();
+    _dashboardUrl.dispose();
     super.dispose();
   }
 
@@ -73,10 +105,215 @@ class _HotspotWorkspaceState extends State<HotspotWorkspace> {
   }
 
   void _back() {
-    if (_page == _Page.list) {
+    if (_page == _Page.list ||
+        _page == _Page.summary ||
+        _page == _Page.records ||
+        _page == _Page.sync) {
       setState(() => _page = _Page.home);
+    } else if (_page == _Page.dashboardAddress) {
+      _openSyncStatus();
+    } else if (_page == _Page.pendingChanges) {
+      _openSyncStatus();
+    } else if (_page == _Page.recordDetail) {
+      _openRecords();
     } else {
       _list();
+    }
+  }
+
+  Future<void> _openRecords() async {
+    widget.session.activity();
+    setState(() {
+      _page = _Page.records;
+      _recordsLoading = true;
+      _recordsError = null;
+    });
+    try {
+      final records = await _repository.todayEncounters();
+      if (!mounted || _page != _Page.records) return;
+      setState(() {
+        _records = records;
+        _recordsLoading = false;
+      });
+    } catch (_) {
+      if (!mounted || _page != _Page.records) return;
+      setState(() {
+        _recordsLoading = false;
+        _recordsError = 'Unable to load today records. Please retry.';
+      });
+    }
+  }
+
+  Future<void> _openSummary() async {
+    widget.session.activity();
+    setState(() {
+      _page = _Page.summary;
+      _summaryLoading = true;
+      _summaryError = null;
+    });
+    try {
+      final summary = await _repository.todaySummary();
+      if (!mounted || _page != _Page.summary) return;
+      setState(() {
+        _summary = summary;
+        _summaryLoading = false;
+      });
+    } catch (_) {
+      if (!mounted || _page != _Page.summary) return;
+      setState(() {
+        _summaryLoading = false;
+        _summaryError = 'Unable to load today summary. Please retry.';
+      });
+    }
+  }
+
+  Future<void> _openSyncStatus() async {
+    widget.session.activity();
+    setState(() {
+      _page = _Page.sync;
+      _syncLoading = true;
+      _syncError = null;
+    });
+    try {
+      final status = await _repository.syncStatus();
+      if (!mounted || _page != _Page.sync) return;
+      setState(() {
+        _syncStatus = status;
+        _syncLoading = false;
+      });
+    } catch (_) {
+      if (!mounted || _page != _Page.sync) return;
+      setState(() {
+        _syncLoading = false;
+        _syncError = 'Unable to load sync status. Please retry.';
+      });
+    }
+  }
+
+  void _openDashboardAddress() {
+    widget.session.activity();
+    _dashboardUrl.text = (_syncStatus?['dashboard_url'] as String?) ?? '';
+    setState(() {
+      _page = _Page.dashboardAddress;
+      _dashboardAddressError = null;
+    });
+  }
+
+  Future<void> _openPendingChanges() async {
+    widget.session.activity();
+    setState(() {
+      _page = _Page.pendingChanges;
+      _pendingChangesLoading = true;
+      _pendingChangesError = null;
+    });
+    try {
+      final rows = await _repository.pendingOperations();
+      if (!mounted || _page != _Page.pendingChanges) return;
+      setState(() {
+        _pendingChanges = rows;
+        _pendingChangesLoading = false;
+      });
+    } catch (_) {
+      if (!mounted || _page != _Page.pendingChanges) return;
+      setState(() {
+        _pendingChangesLoading = false;
+        _pendingChangesError = 'Unable to load pending changes.';
+      });
+    }
+  }
+
+  Future<void> _saveDashboardAddress() async {
+    if (_savingDashboardAddress) return;
+    widget.session.activity();
+    final value = _dashboardUrl.text.trim();
+    if (!value.startsWith('http://')) {
+      setState(() {
+        _dashboardAddressError =
+            'Enter the local dashboard address starting with http://';
+      });
+      return;
+    }
+    setState(() {
+      _savingDashboardAddress = true;
+      _dashboardAddressError = null;
+    });
+    try {
+      await _repository.saveDashboardAddress(value);
+      if (!mounted) return;
+      _savingDashboardAddress = false;
+      _openSyncStatus();
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _savingDashboardAddress = false;
+        _dashboardAddressError = 'Could not save dashboard address.';
+      });
+    }
+  }
+
+  Future<void> _clearDashboardAddress() async {
+    if (_savingDashboardAddress) return;
+    widget.session.activity();
+    setState(() {
+      _savingDashboardAddress = true;
+      _dashboardAddressError = null;
+    });
+    try {
+      await _repository.clearDashboardAddress();
+      if (!mounted) return;
+      _dashboardUrl.clear();
+      _savingDashboardAddress = false;
+      _openSyncStatus();
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _savingDashboardAddress = false;
+        _dashboardAddressError = 'Could not clear dashboard address.';
+      });
+    }
+  }
+
+  Future<void> _deleteSelectedRecord() async {
+    final record = _selectedRecord;
+    if (_deletingRecord || record == null) return;
+    widget.session.activity();
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Delete record?'),
+        content: Text(
+          'Delete ${record['client_code']} from today records? This can be synced later as a deleted record.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            key: const ValueKey('confirm-delete-record'),
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+    setState(() => _deletingRecord = true);
+    try {
+      await _repository.deleteEncounter(
+        record['encounter_id'] as String,
+        expectedRevision: (record['revision'] as num).toInt(),
+      );
+      if (!mounted) return;
+      _selectedRecord = null;
+      _deletingRecord = false;
+      _openRecords();
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _deletingRecord = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Could not delete record. Please retry.')),
+      );
     }
   }
 
@@ -98,6 +335,29 @@ class _HotspotWorkspaceState extends State<HotspotWorkspace> {
         onBack: _back,
       ),
       _Page.detail => _detail(context),
+      _Page.encounter => EncounterForm(
+        repository: _repository,
+        session: widget.session,
+        hotspot: _selected!,
+        onBack: () => setState(() => _page = _Page.detail),
+      ),
+      _Page.summary => _summaryPage(context),
+      _Page.records => _recordsPage(context),
+      _Page.recordDetail => _recordDetailPage(context),
+      _Page.editRecord => EncounterForm(
+        repository: _repository,
+        session: widget.session,
+        hotspot: {
+          'hotspot_id': _selectedRecord!['hotspot_id'],
+          'name': _selectedRecord!['hotspot_name'],
+        },
+        initialRecord: _selectedRecord,
+        onBack: () => setState(() => _page = _Page.recordDetail),
+        onSaved: _openRecords,
+      ),
+      _Page.sync => _syncPage(context),
+      _Page.dashboardAddress => _dashboardAddressPage(context),
+      _Page.pendingChanges => _pendingChangesPage(context),
     },
   );
 
@@ -147,6 +407,27 @@ class _HotspotWorkspaceState extends State<HotspotWorkspace> {
               onPressed: _list,
               icon: const Icon(Icons.location_on_outlined),
               label: const Text('Hotspots'),
+            ),
+            const SizedBox(height: 12),
+            OutlinedButton.icon(
+              key: const ValueKey('open-daily-summary'),
+              onPressed: _openSummary,
+              icon: const Icon(Icons.summarize_outlined),
+              label: const Text('Daily summary'),
+            ),
+            const SizedBox(height: 12),
+            OutlinedButton.icon(
+              key: const ValueKey('open-today-records'),
+              onPressed: _openRecords,
+              icon: const Icon(Icons.receipt_long_outlined),
+              label: const Text("Today's records"),
+            ),
+            const SizedBox(height: 12),
+            OutlinedButton.icon(
+              key: const ValueKey('open-sync-status'),
+              onPressed: _openSyncStatus,
+              icon: const Icon(Icons.sync_outlined),
+              label: const Text('Sync status'),
             ),
           ],
         ),
@@ -288,10 +569,664 @@ class _HotspotWorkspaceState extends State<HotspotWorkspace> {
             Text('Longitude: ${(row['longitude'] as num).toStringAsFixed(6)}'),
           ],
           const SizedBox(height: 24),
-          const Text('Client-entry forms are coming next.'),
+          FilledButton.icon(
+            key: const ValueKey('open-client-entry'),
+            onPressed: () => setState(() => _page = _Page.encounter),
+            icon: const Icon(Icons.person_add_alt_1_outlined),
+            label: const Text('Enter client record'),
+          ),
         ],
       ),
       bottomNavigationBar: _footer(),
     );
   }
+
+  Widget _recordsPage(BuildContext context) => Scaffold(
+    appBar: AppBar(
+      title: const Text("Today's records"),
+      leading: BackButton(onPressed: _back),
+      actions: [
+        IconButton(
+          key: const ValueKey('refresh-today-records'),
+          tooltip: 'Refresh',
+          onPressed: _recordsLoading ? null : _openRecords,
+          icon: const Icon(Icons.refresh),
+        ),
+      ],
+    ),
+    body: SafeArea(
+      child: _recordsLoading
+          ? const Center(child: CircularProgressIndicator())
+          : _recordsError != null
+          ? Center(
+              child: Padding(
+                padding: const EdgeInsets.all(24),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(_recordsError!, textAlign: TextAlign.center),
+                    const SizedBox(height: 12),
+                    FilledButton(
+                      onPressed: _openRecords,
+                      child: const Text('Retry'),
+                    ),
+                  ],
+                ),
+              ),
+            )
+          : _records.isEmpty
+          ? const Center(
+              child: Padding(
+                padding: EdgeInsets.all(24),
+                child: Text(
+                  'No client records saved today.',
+                  textAlign: TextAlign.center,
+                ),
+              ),
+            )
+          : ListView.separated(
+              itemCount: _records.length,
+              separatorBuilder: (_, _) => const Divider(height: 1),
+              itemBuilder: (context, index) {
+                final record = _records[index];
+                return ListTile(
+                  key: ValueKey('record-${record['encounter_id']}'),
+                  title: Text(record['client_code'] as String),
+                  subtitle: Text(
+                    "${record['hotspot_name']} - ${_recordKind(record)} - ${_testSummary(record)}",
+                  ),
+                  trailing: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: [
+                      Text(_savedTime(record)),
+                      const Icon(Icons.chevron_right),
+                    ],
+                  ),
+                  onTap: () => setState(() {
+                    _selectedRecord = record;
+                    _page = _Page.recordDetail;
+                  }),
+                );
+              },
+            ),
+    ),
+    bottomNavigationBar: _footer(),
+  );
+
+  Widget _recordDetailPage(BuildContext context) {
+    final record = _selectedRecord!;
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Record detail'),
+        leading: BackButton(onPressed: _back),
+      ),
+      body: ListView(
+        padding: const EdgeInsets.all(20),
+        children: [
+          Text(
+            record['client_code'] as String,
+            style: Theme.of(context).textTheme.headlineSmall,
+          ),
+          const SizedBox(height: 4),
+          Text("${record['hotspot_name']} - ${record['visit_date']}"),
+          const SizedBox(height: 20),
+          _summarySection(context, 'Client', {
+            'Type': _recordKind(record),
+            'User type': _text(record['user_type']),
+            'Gender': _text(record['gender']),
+            'Previous HIV': _text(record['previous_hiv']),
+            'Previous HCV': _text(record['previous_hcv']),
+            'Previous HBV': _text(record['previous_hbv']),
+            'Previous MMT': _text(record['previous_mmt']),
+            'Previous ART': _text(record['previous_art']),
+          }),
+          const SizedBox(height: 20),
+          _summarySection(context, 'Testing', {
+            'HIV': _text(record['hiv']),
+            'HCV': _text(record['hcv']),
+            'HBV': _text(record['hbv']),
+            'Syphilis': _text(record['syphilis']),
+          }),
+          const SizedBox(height: 20),
+          _summarySection(context, 'Distribution', {
+            '3cc': _text(record['dist_3cc']),
+            '1cc': _text(record['dist_1cc']),
+            'LDS': _text(record['dist_lds']),
+            'Alcohol swab': _text(record['dist_alcohol_swab']),
+            'Sterile water': _text(record['dist_sterile_water']),
+            'Condom': _text(record['dist_condom']),
+          }),
+          const SizedBox(height: 20),
+          _summarySection(context, 'Recollection', {
+            '3cc': _text(record['recollect_3cc']),
+            '1cc': _text(record['recollect_1cc']),
+            'LDS': _text(record['recollect_lds']),
+          }),
+          const SizedBox(height: 20),
+          _summarySection(context, 'Other', {
+            'Refer to DIC': record['refer_dic'] == 1 ? 'Yes' : 'No',
+            'Saved time': _savedTime(record),
+            'Remark': _text(record['remark']),
+          }),
+          const SizedBox(height: 24),
+          FilledButton.icon(
+            key: const ValueKey('edit-record'),
+            onPressed: _deletingRecord
+                ? null
+                : () => setState(() => _page = _Page.editRecord),
+            icon: const Icon(Icons.edit_outlined),
+            label: const Padding(
+              padding: EdgeInsets.all(12),
+              child: Text('Edit record'),
+            ),
+          ),
+          const SizedBox(height: 12),
+          OutlinedButton.icon(
+            key: const ValueKey('delete-record'),
+            onPressed: _deletingRecord ? null : _deleteSelectedRecord,
+            icon: const Icon(Icons.delete_outline),
+            label: Padding(
+              padding: const EdgeInsets.all(12),
+              child: Text(_deletingRecord ? 'Deleting...' : 'Delete record'),
+            ),
+          ),
+        ],
+      ),
+      bottomNavigationBar: _footer(),
+    );
+  }
+
+  Widget _summaryPage(BuildContext context) => Scaffold(
+    appBar: AppBar(
+      title: const Text('Daily summary'),
+      leading: BackButton(onPressed: _back),
+      actions: [
+        IconButton(
+          key: const ValueKey('refresh-daily-summary'),
+          tooltip: 'Refresh',
+          onPressed: _summaryLoading ? null : _openSummary,
+          icon: const Icon(Icons.refresh),
+        ),
+      ],
+    ),
+    body: SafeArea(
+      child: _summaryLoading
+          ? const Center(child: CircularProgressIndicator())
+          : _summaryError != null
+          ? Center(
+              child: Padding(
+                padding: const EdgeInsets.all(24),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(_summaryError!, textAlign: TextAlign.center),
+                    const SizedBox(height: 12),
+                    FilledButton(
+                      onPressed: _openSummary,
+                      child: const Text('Retry'),
+                    ),
+                  ],
+                ),
+              ),
+            )
+          : ListView(
+              padding: const EdgeInsets.all(20),
+              children: [
+                Text(
+                  "Today's work",
+                  style: Theme.of(context).textTheme.headlineSmall,
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  'Only your saved records on this phone are counted.',
+                  style: Theme.of(context).textTheme.bodyMedium,
+                ),
+                const SizedBox(height: 20),
+                _summaryGrid(context, [
+                  _SummaryItem('Hotspots', _value('hotspots')),
+                  _SummaryItem('Records', _value('client_records')),
+                  _SummaryItem('Unique people', _value('unique_people')),
+                  _SummaryItem('DIC referrals', _value('dic_referrals')),
+                ]),
+                const SizedBox(height: 20),
+                _summarySection(context, 'Client type', {
+                  'New': _value('new_clients'),
+                  'Old': _value('old_clients'),
+                  'Not specified': _value('unspecified_clients'),
+                }),
+                const SizedBox(height: 20),
+                _summarySection(context, 'Testing', {
+                  'HIV tested': _value('hiv_tested'),
+                  'HIV reactive': _value('hiv_reactive'),
+                  'HCV tested': _value('hcv_tested'),
+                  'HCV reactive': _value('hcv_reactive'),
+                  'HBV tested': _value('hbv_tested'),
+                  'HBV reactive': _value('hbv_reactive'),
+                  'Syphilis tested': _value('syphilis_tested'),
+                  'Syphilis reactive': _value('syphilis_reactive'),
+                }),
+                const SizedBox(height: 20),
+                _summarySection(context, 'Distribution', {
+                  '3cc': _value('dist_3cc'),
+                  '1cc': _value('dist_1cc'),
+                  'LDS': _value('dist_lds'),
+                  'Alcohol swab': _value('dist_alcohol_swab'),
+                  'Sterile water': _value('dist_sterile_water'),
+                  'Condom': _value('dist_condom'),
+                }),
+                const SizedBox(height: 20),
+                _summarySection(context, 'Recollection', {
+                  '3cc': _value('recollect_3cc'),
+                  '1cc': _value('recollect_1cc'),
+                  'LDS': _value('recollect_lds'),
+                }),
+              ],
+            ),
+    ),
+    bottomNavigationBar: _footer(),
+  );
+
+  Widget _syncPage(BuildContext context) => Scaffold(
+    appBar: AppBar(
+      title: const Text('Sync status'),
+      leading: BackButton(onPressed: _back),
+      actions: [
+        IconButton(
+          key: const ValueKey('refresh-sync-status'),
+          tooltip: 'Refresh',
+          onPressed: _syncLoading ? null : _openSyncStatus,
+          icon: const Icon(Icons.refresh),
+        ),
+      ],
+    ),
+    body: SafeArea(
+      child: _syncLoading
+          ? const Center(child: CircularProgressIndicator())
+          : _syncError != null
+          ? Center(
+              child: Padding(
+                padding: const EdgeInsets.all(24),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(_syncError!, textAlign: TextAlign.center),
+                    const SizedBox(height: 12),
+                    FilledButton(
+                      onPressed: _openSyncStatus,
+                      child: const Text('Retry'),
+                    ),
+                  ],
+                ),
+              ),
+            )
+          : ListView(
+              padding: const EdgeInsets.all(20),
+              children: [
+                Text(
+                  'Desktop connection',
+                  style: Theme.of(context).textTheme.headlineSmall,
+                ),
+                const SizedBox(height: 8),
+                const Text(
+                  'The Windows dashboard is not configured yet. Your records remain saved on this phone.',
+                ),
+                const SizedBox(height: 12),
+                const Card(
+                  child: Padding(
+                    padding: EdgeInsets.all(12),
+                    child: Text(
+                      'This screen is for checking pending changes only. Sync will stay unavailable until the office dashboard is built and paired.',
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 20),
+                _summaryGrid(context, [
+                  _SummaryItem(
+                    'Pending changes',
+                    ((_syncStatus?['pending_operations'] as num?) ?? 0).toInt(),
+                  ),
+                ]),
+                const SizedBox(height: 20),
+                _summarySection(context, 'Connection', {
+                  'Status': _text(_syncStatus?['dashboard_status']),
+                  'Dashboard': _text(_syncStatus?['dashboard_name']),
+                  'Address': _text(_syncStatus?['dashboard_url']),
+                  'Paired at': _text(_syncStatus?['paired_at']),
+                  'Last successful sync': _text(
+                    _syncStatus?['last_successful_sync_at'],
+                  ),
+                }),
+                const SizedBox(height: 20),
+                _summarySection(context, 'Sync readiness', {
+                  'Dashboard address saved': _yesNo(
+                    _hasText(_syncStatus?['dashboard_url']),
+                  ),
+                  'Dashboard paired': _yesNo(
+                    _syncStatus?['dashboard_status'] == 'Paired',
+                  ),
+                  'Ready to sync': 'No',
+                }),
+                const SizedBox(height: 20),
+                _summarySection(context, 'Pending details', {
+                  'Worker changes': _syncValue('pending_workers'),
+                  'Hotspot changes': _syncValue('pending_hotspots'),
+                  'Client record changes': _syncValue('pending_encounters'),
+                  'Creates': _syncValue('pending_creates'),
+                  'Updates': _syncValue('pending_updates'),
+                  'Deletes': _syncValue('pending_deletes'),
+                }),
+                const SizedBox(height: 20),
+                _summarySection(context, 'App identity', {
+                  'Project': _text(_syncStatus?['project_name']),
+                  'Project ID': _text(_syncStatus?['project_id']),
+                  'Device ID': _shortDeviceId(_syncStatus?['device_id']),
+                }),
+                const SizedBox(height: 24),
+                OutlinedButton.icon(
+                  key: const ValueKey('view-pending-changes'),
+                  onPressed: _openPendingChanges,
+                  icon: const Icon(Icons.list_alt_outlined),
+                  label: const Padding(
+                    padding: EdgeInsets.all(12),
+                    child: Text('View pending changes'),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                OutlinedButton.icon(
+                  key: const ValueKey('configure-dashboard-address'),
+                  onPressed: _openDashboardAddress,
+                  icon: const Icon(Icons.settings_ethernet_outlined),
+                  label: const Padding(
+                    padding: EdgeInsets.all(12),
+                    child: Text('Set dashboard address'),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                FilledButton.icon(
+                  key: const ValueKey('sync-disabled'),
+                  onPressed: null,
+                  icon: const Icon(Icons.sync_disabled_outlined),
+                  label: const Padding(
+                    padding: EdgeInsets.all(12),
+                    child: Text('Sync unavailable until dashboard setup'),
+                  ),
+                ),
+              ],
+            ),
+    ),
+    bottomNavigationBar: _footer(),
+  );
+
+  Widget _pendingChangesPage(BuildContext context) => Scaffold(
+    appBar: AppBar(
+      title: const Text('Pending changes'),
+      leading: BackButton(onPressed: _back),
+      actions: [
+        IconButton(
+          key: const ValueKey('refresh-pending-changes'),
+          tooltip: 'Refresh',
+          onPressed: _pendingChangesLoading ? null : _openPendingChanges,
+          icon: const Icon(Icons.refresh),
+        ),
+      ],
+    ),
+    body: SafeArea(
+      child: _pendingChangesLoading
+          ? const Center(child: CircularProgressIndicator())
+          : _pendingChangesError != null
+          ? Center(
+              child: Padding(
+                padding: const EdgeInsets.all(24),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(_pendingChangesError!, textAlign: TextAlign.center),
+                    const SizedBox(height: 12),
+                    FilledButton(
+                      onPressed: _openPendingChanges,
+                      child: const Text('Retry'),
+                    ),
+                  ],
+                ),
+              ),
+            )
+          : _pendingChanges.isEmpty
+          ? const Center(
+              child: Padding(
+                padding: EdgeInsets.all(24),
+                child: Text('No pending changes.', textAlign: TextAlign.center),
+              ),
+            )
+          : ListView.separated(
+              itemCount: _pendingChanges.length,
+              separatorBuilder: (_, _) => const Divider(height: 1),
+              itemBuilder: (context, index) {
+                final row = _pendingChanges[index];
+                return ListTile(
+                  key: ValueKey('pending-${row['operation_id']}'),
+                  leading: CircleAvatar(child: Text('${index + 1}')),
+                  title: Text(_operationLabel(row)),
+                  subtitle: Text(
+                    'Revision ${row['revision']} - ${_operationTime(row)}',
+                  ),
+                );
+              },
+            ),
+    ),
+    bottomNavigationBar: _footer(),
+  );
+
+  Widget _dashboardAddressPage(BuildContext context) => Scaffold(
+    appBar: AppBar(
+      title: const Text('Dashboard address'),
+      leading: BackButton(onPressed: _back),
+    ),
+    body: SafeArea(
+      child: ListView(
+        padding: const EdgeInsets.all(20),
+        children: [
+          Text(
+            'Future dashboard connection',
+            style: Theme.of(context).textTheme.headlineSmall,
+          ),
+          const SizedBox(height: 8),
+          const Text(
+            'Save the Windows dashboard local address here. This does not pair, upload, sync or delete data yet.',
+          ),
+          const SizedBox(height: 20),
+          TextField(
+            key: const ValueKey('dashboard-address'),
+            controller: _dashboardUrl,
+            keyboardType: TextInputType.url,
+            autocorrect: false,
+            decoration: InputDecoration(
+              labelText: 'Dashboard address',
+              hintText: 'http://192.168.1.20:8080/api/v1',
+              errorText: _dashboardAddressError,
+              prefixIcon: const Icon(Icons.link_outlined),
+            ),
+            onChanged: (_) => widget.session.activity(),
+          ),
+          const SizedBox(height: 20),
+          FilledButton.icon(
+            key: const ValueKey('save-dashboard-address'),
+            onPressed: _savingDashboardAddress ? null : _saveDashboardAddress,
+            icon: const Icon(Icons.save_outlined),
+            label: Padding(
+              padding: const EdgeInsets.all(12),
+              child: Text(
+                _savingDashboardAddress ? 'Saving...' : 'Save address only',
+              ),
+            ),
+          ),
+          const SizedBox(height: 12),
+          OutlinedButton.icon(
+            key: const ValueKey('clear-dashboard-address'),
+            onPressed: _savingDashboardAddress || _dashboardUrl.text.isEmpty
+                ? null
+                : _clearDashboardAddress,
+            icon: const Icon(Icons.clear_outlined),
+            label: const Padding(
+              padding: EdgeInsets.all(12),
+              child: Text('Clear saved address'),
+            ),
+          ),
+        ],
+      ),
+    ),
+    bottomNavigationBar: _footer(),
+  );
+
+  int _value(String key) => (_summary?[key] as num?)?.toInt() ?? 0;
+
+  int _syncValue(String key) => (_syncStatus?[key] as num?)?.toInt() ?? 0;
+
+  Widget _summaryGrid(BuildContext context, List<_SummaryItem> items) =>
+      GridView.count(
+        crossAxisCount: 2,
+        childAspectRatio: 1.9,
+        mainAxisSpacing: 12,
+        crossAxisSpacing: 12,
+        shrinkWrap: true,
+        physics: const NeverScrollableScrollPhysics(),
+        children: [
+          for (final item in items)
+            DecoratedBox(
+              decoration: BoxDecoration(
+                color: Theme.of(context).colorScheme.primaryContainer,
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Padding(
+                padding: const EdgeInsets.all(12),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Text(
+                      item.value.toString(),
+                      style: Theme.of(context).textTheme.headlineSmall
+                          ?.copyWith(fontWeight: FontWeight.w800),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(item.label),
+                  ],
+                ),
+              ),
+            ),
+        ],
+      );
+
+  Widget _summarySection(
+    BuildContext context,
+    String title,
+    Map<String, Object> values,
+  ) => DecoratedBox(
+    decoration: BoxDecoration(
+      border: Border.all(color: Theme.of(context).dividerColor),
+      borderRadius: BorderRadius.circular(12),
+    ),
+    child: Padding(
+      padding: const EdgeInsets.all(12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            title,
+            style: Theme.of(
+              context,
+            ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
+          ),
+          const SizedBox(height: 8),
+          for (final entry in values.entries)
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 4),
+              child: Row(
+                children: [
+                  Expanded(child: Text(entry.key)),
+                  Text(
+                    entry.value.toString(),
+                    style: const TextStyle(fontWeight: FontWeight.w700),
+                  ),
+                ],
+              ),
+            ),
+        ],
+      ),
+    ),
+  );
+
+  String _recordKind(data.Row record) =>
+      (record['client_kind'] as String?) ?? 'Not specified';
+
+  String _text(Object? value) {
+    final text = value?.toString().trim() ?? '';
+    return text.isEmpty ? '-' : text;
+  }
+
+  bool _hasText(Object? value) => _text(value) != '-';
+
+  String _yesNo(bool value) => value ? 'Yes' : 'No';
+
+  String _testSummary(data.Row record) {
+    final tested = [
+      if (record['hiv'] != 'No') 'HIV',
+      if (record['hcv'] != 'No') 'HCV',
+      if (record['hbv'] != 'No') 'HBV',
+      if (record['syphilis'] != 'No') 'Syphilis',
+    ];
+    return tested.isEmpty ? 'No tests' : 'Tested ${tested.join(', ')}';
+  }
+
+  String _savedTime(data.Row record) {
+    final value = record['created_at'] as String?;
+    if (value == null) return '';
+    final time = DateTime.tryParse(value)?.toLocal();
+    if (time == null) return '';
+    final hour = time.hour.toString().padLeft(2, '0');
+    final minute = time.minute.toString().padLeft(2, '0');
+    return '$hour:$minute';
+  }
+
+  String _operationLabel(data.Row operation) {
+    final action = _text(operation['action']);
+    final type = _text(operation['entity_type']);
+    return '${_capitalize(action)} ${_operationType(type)}';
+  }
+
+  String _operationType(String value) => switch (value) {
+    'worker' => 'worker account',
+    'hotspot' => 'hotspot',
+    'encounter' => 'client record',
+    _ => value,
+  };
+
+  String _operationTime(data.Row operation) {
+    final value = operation['occurred_at'] as String?;
+    if (value == null) return '-';
+    final time = DateTime.tryParse(value)?.toLocal();
+    if (time == null) return '-';
+    final date =
+        '${time.year.toString().padLeft(4, '0')}-${time.month.toString().padLeft(2, '0')}-${time.day.toString().padLeft(2, '0')}';
+    final hour = time.hour.toString().padLeft(2, '0');
+    final minute = time.minute.toString().padLeft(2, '0');
+    return '$date $hour:$minute';
+  }
+
+  String _capitalize(String value) {
+    if (value.isEmpty || value == '-') return value;
+    return '${value[0].toUpperCase()}${value.substring(1)}';
+  }
+
+  String _shortDeviceId(Object? value) {
+    final text = value?.toString() ?? '';
+    if (text.length <= 12) return _text(text);
+    return '${text.substring(0, 8)}...${text.substring(text.length - 4)}';
+  }
+}
+
+class _SummaryItem {
+  const _SummaryItem(this.label, this.value);
+  final String label;
+  final int value;
 }

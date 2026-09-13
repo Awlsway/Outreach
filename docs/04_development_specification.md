@@ -1,6 +1,6 @@
 # ANSVK Outreach development specification
 
-Status: Android foundation, SQLite schema v2, offline accounts/lock and hotspot workflow implemented. See 05_build_status.md for validation, 07_accounts_and_lock.md for accounts, and 08_hotspots.md for hotspots.
+Status: Android foundation, SQLite schema v3, offline accounts/lock, hotspot workflow, client encounter creation and phone-side daily summary implemented. See 05_build_status.md for validation, 07_accounts_and_lock.md for accounts, 08_hotspots.md for hotspots, 09_client_entry.md for encounters and 10_daily_summary.md for summary behavior.
 
 This specification implements 01_plan.md and the acceptance checks in 02_implementation_plan.md. Defaults below are project-manager decisions, not additional user-confirmed requirements. They allow development to proceed and can be revised without changing the confirmed scope.
 
@@ -25,7 +25,7 @@ Use a repository layer between screens and local storage. All normal reads and w
 - Password unlock resumes an in-memory draft. A process shutdown may lose an unsaved draft; saved records must survive.
 - Keep today and the preceding six local dates. Older acknowledged records are eligible for removal; unsynchronized records never expire.
 - Use local calendar dates for daily entry and totals, and UTC timestamps for audit events. Existing visit dates are immutable during edits.
-- Count distinct active hotspots, distinct client codes, HIV encounters with a result other than No, and separate quantities per distributed item. The unique-client definition is user-confirmed; other summary choices follow earlier proposals.
+- Count distinct active hotspots, total records, distinct client codes, New/Old/Not specified client type, tests with a result other than No, reactive tests, DIC referrals and separate quantities per distributed/recollected item. The unique-client definition is user-confirmed; other summary choices follow earlier proposals.
 - Use a fresh form layout based on these fields; no reference form is required to start.
 
 ## Field dictionary
@@ -35,13 +35,15 @@ Use a repository layer between screens and local storage. All normal reads and w
 | Account | worker_id | Generated stable ID; never use username as a global identity |
 | Account | username | Required at registration; trim; enforce local uniqueness |
 | Account | password verifier | Salted password-derived verifier; never plaintext; algorithm and parameters selected during security implementation |
+| App identity | project_id, project_name | Auto-created local project identity for future dashboard sync |
+| App identity | device_id, created_at | Auto-created stable device identity and UTC timestamp for future sync batches |
 | Hotspot | hotspot_id, owner_id | Generated ID and immutable creator/owner |
 | Hotspot | name | Trimmed text; require a usable name to create the hotspot |
 | Hotspot | peers | Ordered list of typed names; multiple allowed; no fixed directory |
 | Hotspot | latitude, longitude, location_status | Nullable coordinates with Available/Unavailable state |
 | Hotspot | created_at | UTC creation timestamp |
 | Encounter | encounter_id, owner_id, hotspot_id | Generated ID; owner fixed to session; hotspot must belong to owner |
-| Encounter | client_code | Required trimmed text; leading zeros preserved |
+| Encounter | client_code | Required structured code: four-digit year, fixed MY segment and a 1–4 digit number stored as YYYY/MY/0000 |
 | Encounter | visit_date | Local YYYY-MM-DD, assigned on initial save; no date picker |
 | Encounter | client_kind | New, Old, or null (Not specified) |
 | New-client modal | user_type | PWID default; PWUD, SPOUS, MSM, FSW, FM, Youth, Other |
@@ -61,7 +63,7 @@ Client-code-only required input applies to the encounter form, not account regis
 
 ## Database invariants and operations
 
-Tables: workers, hotspots, hotspot_peers, encounters, audit_operations, sync_outbox, sync_state. No permanent client table is needed. Use schema migrations from version 1.
+Tables: workers, hotspots, hotspot_peers, encounters, audit_operations, sync_outbox, sync_state, credentials and app_identity. No permanent client table is needed. Use schema migrations from version 1.
 
 - Every repository call obtains the worker ID from the authenticated session, rather than trusting an ID passed from a form.
 - Encounters reference hotspots belonging to the same worker. Apply this rule on insert and update.
@@ -72,17 +74,9 @@ Tables: workers, hotspots, hotspot_peers, encounters, audit_operations, sync_out
 - Summary queries use the signed-in worker, today's visit_date and deleted_at IS NULL. Clients served uses COUNT(DISTINCT client_code).
 - Cleanup uses the latest acknowledged revision. An acknowledgement of revision 1 does not authorize removing locally edited revision 2.
 
-## Future desktop API draft
+## Future desktop sync architecture
 
-This is a proposed contract for the desktop team; no server or endpoint currently exists.
-
-1. Pair through an explicit office-server configuration and authenticated pairing flow. Transport trust and account reconciliation must be implemented before production sync. Never disable certificate checks to make LAN connection work.
-2. POST /api/v1/sync/batches sends protocol version, device ID, worker ID, batch ID and ordered operations. Operations contain operation ID, entity type/ID, revision, action, timestamp and payload.
-3. Desktop durably stores accepted operations before returning acknowledgements keyed by operation ID and revision. Include rejected operations with machine-readable reason and retryability.
-4. Mobile marks only matching operations acknowledged. Retry unchanged operation IDs after timeout; a new batch ID must not defeat operation deduplication.
-5. Apply hotspot creation before dependent encounters. A rejected hotspot cannot leave its encounter incorrectly marked synchronized.
-6. Upload deletes as explicit operations, not silent disappearance. Never send password verifiers as part of the data batch.
-7. Once the worker's eligible changes are acknowledged, run local retention cleanup transactionally. Interrupted cleanup must be safe to retry.
+The sync architecture decision is now documented in 12_sync_architecture_decision.md. The detailed future endpoint and JSON contract is documented in 13_dashboard_api_contract.md. The locked direction is Android APK to Windows dashboard over the office local network using a dashboard-hosted local HTTP API. Sync is manual, upload-only for client data, paired before use, and acknowledged per operation before the phone marks anything synced.
 
 No automatic background syncing. The first APK may show Sync with an explanatory Desktop connection not configured state and pending-change count. A development fake service must not be packaged as a successful production connection.
 
@@ -95,8 +89,8 @@ No automatic background syncing. The first APK may show Sync with an explanatory
 | 3 | Implement local authentication and lock | Registration/login, credential storage, session timeout, background concealment | A01–A03 |
 | 4 | Implement hotspots | Search, creation, typed peers, location permission and fallback | A04–A05 |
 | 5 | Implement encounter entry | All fields/defaults, New modal, validation, save/reset | A06–A09, A11–A12 |
-| 6 | Implement own-record management | List/detail/edit/delete with audit tracking | A02, A08, A10 |
-| 7 | Implement daily summary | Distinct clients and hotspots; tests and supply totals | A13 |
+| 6 | Implement daily summary | Distinct clients and hotspots; tests and supply totals | A13 |
+| 7 | Implement own-record management | List/detail/edit/delete with audit tracking | A02, A08, A10 |
 | 8 | Implement sync preparation | Persistent queue, unavailable connection UI, development acknowledgement tests | A14–A17 |
 | 9 | Verify release and pilot | APK, installation instructions, evidence and known limitations | A01–A18 |
 

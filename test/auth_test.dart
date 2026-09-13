@@ -149,6 +149,7 @@ void main() {
     () async {
       final dir = await Directory.systemTemp.createTemp('ansvk_upgrade_');
       final path = '${dir.path}/upgrade.db';
+      AppDatabase? upgraded;
       try {
         final old = await databaseFactoryFfi.openDatabase(
           path,
@@ -169,17 +170,28 @@ void main() {
           'created_at': '2026-09-10T00:00:00Z',
         });
         await old.close();
-        var upgraded = await AppDatabase.open(
+        upgraded = await AppDatabase.open(
           factory: databaseFactoryFfi,
           path: path,
         );
         var service = AuthService(upgraded, hasher: TestHasher());
         final worker = await service.register('Alice', 'password1');
-        expect(await upgraded.connection.getVersion(), 2);
+        expect(await upgraded.connection.getVersion(), 4);
         expect(
           (await upgraded.connection.query('hotspots')).single['name'],
           'Saved site',
         );
+        final identity = (await upgraded.connection.query(
+          'app_identity',
+        )).single;
+        expect(identity['project_id'], 'ansvk_outreach');
+        expect(identity['project_name'], 'ANSVK Outreach');
+        expect(identity['device_id'], isA<String>());
+        final dashboard = (await upgraded.connection.query(
+          'dashboard_connection',
+        )).single;
+        expect(dashboard['status'], 'Not configured');
+        expect(dashboard['dashboard_url'], isNull);
         await upgraded.close();
         upgraded = await AppDatabase.open(
           factory: databaseFactoryFfi,
@@ -193,6 +205,7 @@ void main() {
         session.dispose();
         await upgraded.close();
       } finally {
+        await upgraded?.close();
         await dir.delete(recursive: true);
       }
     },

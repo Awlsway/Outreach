@@ -48,7 +48,7 @@ void main() {
         'hotspot_id': hotspot,
         'client_code': ' 001 ',
       });
-      expect(await database.connection.getVersion(), 2);
+      expect(await database.connection.getVersion(), 4);
       expect(
         (await database.connection.rawQuery(
           'PRAGMA foreign_keys',
@@ -68,8 +68,18 @@ void main() {
           'audit_operations',
           'sync_outbox',
           'sync_state',
+          'credentials',
+          'app_identity',
+          'dashboard_connection',
         ]),
       );
+      final identity = await repo.appIdentity();
+      expect(identity['singleton_id'], 1);
+      expect(identity['project_id'], 'ansvk_outreach');
+      expect(identity['project_name'], 'ANSVK Outreach');
+      expect(identity['device_id'], isA<String>());
+      expect((identity['device_id'] as String).length, greaterThan(20));
+      expect(DateTime.tryParse(identity['created_at'] as String), isNotNull);
       await database.close();
       database = await AppDatabase.open(
         factory: databaseFactoryFfi,
@@ -80,6 +90,7 @@ void main() {
         currentWorkerId: () => session,
         clock: () => now,
       );
+      expect(await repo.appIdentity(), identity);
       final row = (await repo.encounter(id))!;
       expect(row['client_code'], '001');
       expect(row['dist_3cc'], 0);
@@ -87,6 +98,33 @@ void main() {
       expect(row['refer_dic'], 0);
       expect((await repo.hotspots()).single['peers'], ['Peer 1', 'Peer 2']);
       expect(await repo.pendingOperations(), hasLength(3));
+      final status = await repo.syncStatus();
+      expect(status['pending_operations'], 3);
+      expect(status['pending_workers'], 1);
+      expect(status['pending_hotspots'], 1);
+      expect(status['pending_encounters'], 1);
+      expect(status['pending_creates'], 3);
+      expect(status['pending_updates'], 0);
+      expect(status['pending_deletes'], 0);
+      expect(status['last_successful_sync_at'], isNull);
+      expect(status['project_id'], 'ansvk_outreach');
+      expect(status['project_name'], 'ANSVK Outreach');
+      expect(status['device_id'], identity['device_id']);
+      expect(status['dashboard_status'], 'Not configured');
+      expect(status['dashboard_url'], isNull);
+      expect(status['paired_at'], isNull);
+      await repo.saveDashboardAddress(' http://192.168.1.20:8080/api/v1 ');
+      final configured = await repo.syncStatus();
+      expect(configured['dashboard_status'], 'Not configured');
+      expect(configured['dashboard_url'], 'http://192.168.1.20:8080/api/v1');
+      expect(configured['dashboard_id'], isNull);
+      expect(configured['paired_at'], isNull);
+      await repo.clearDashboardAddress();
+      final cleared = await repo.syncStatus();
+      expect(cleared['dashboard_status'], 'Not configured');
+      expect(cleared['dashboard_url'], isNull);
+      expect(cleared['dashboard_id'], isNull);
+      expect(cleared['paired_at'], isNull);
       expect(
         await database.connection.rawQuery('PRAGMA foreign_key_check'),
         isEmpty,
@@ -299,33 +337,55 @@ void main() {
       final a1 = await repo.createEncounter({
         'hotspot_id': hotspot,
         'client_code': 'A',
+        'client_kind': 'New',
         'hiv': 'Non reactive',
+        'hcv': 'Reactive',
         'dist_3cc': 2,
+        'dist_condom': 4,
+        'recollect_lds': 1,
+        'refer_dic': 1,
       });
       await repo.createEncounter({
         'hotspot_id': y,
         'client_code': 'A',
+        'client_kind': 'Old',
         'hiv': 'Reactive',
+        'hbv': 'Non reactive',
         'dist_3cc': 3,
       });
       final b = await repo.createEncounter({
         'hotspot_id': hotspot,
         'client_code': 'B',
+        'syphilis': 'Reactive',
       });
       now = DateTime(2026, 9, 9);
       await repo.createEncounter({'hotspot_id': hotspot, 'client_code': 'C'});
       now = DateTime(2026, 9, 10);
       final summary = await repo.todaySummary();
-      expect(summary['clients_served'], 2);
+      expect(summary['client_records'], 3);
+      expect(summary['unique_people'], 2);
       expect(summary['hotspots'], 2);
+      expect(summary['new_clients'], 1);
+      expect(summary['old_clients'], 1);
+      expect(summary['unspecified_clients'], 1);
       expect(summary['hiv_tested'], 2);
+      expect(summary['hiv_reactive'], 1);
+      expect(summary['hcv_tested'], 1);
+      expect(summary['hcv_reactive'], 1);
+      expect(summary['hbv_tested'], 1);
+      expect(summary['hbv_reactive'], 0);
+      expect(summary['syphilis_tested'], 1);
+      expect(summary['syphilis_reactive'], 1);
+      expect(summary['dic_referrals'], 1);
       expect(summary['dist_3cc'], 5);
+      expect(summary['dist_condom'], 4);
+      expect(summary['recollect_lds'], 1);
       await repo.deleteEncounter(b, expectedRevision: 1);
-      expect((await repo.todaySummary())['clients_served'], 1);
+      expect((await repo.todaySummary())['unique_people'], 1);
       await repo.deleteEncounter(a1, expectedRevision: 1);
-      expect((await repo.todaySummary())['clients_served'], 1);
+      expect((await repo.todaySummary())['unique_people'], 1);
       session = await repo.createWorkerProfile('worker2');
-      expect((await repo.todaySummary())['clients_served'], 0);
+      expect((await repo.todaySummary())['unique_people'], 0);
     },
   );
 

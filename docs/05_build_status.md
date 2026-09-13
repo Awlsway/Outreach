@@ -1,5 +1,69 @@
 # Scaffold build status
 
+## Sync status preparation
+
+- Added a signed-in **Sync status** screen.
+- The screen reads the real pending-operation count from the local audit/outbox tables and shows a breakdown by worker, hotspot, client-record, create, update and delete operations.
+- Added SQLite schema version 4 with a local `dashboard_connection` row. It currently stores **Not configured** plus empty dashboard address/pairing fields, so future pairing can update stored state instead of replacing hard-coded UI text.
+- It shows desktop connection status, dashboard name/address, pairing time, last successful sync and local app identity information for future support.
+- Added a **Sync readiness** section that separates saved address, pairing status and real sync readiness. Real sync remains **No** until the dashboard pairing/upload work exists.
+- Added worker-facing guidance that Sync Status is only for checking pending changes until the office dashboard is built and paired.
+- Added a **Pending changes** detail screen from Sync Status. It lists pending operation type/action/revision/time only, not full payload data.
+- Added a **Dashboard address** screen from Sync Status. It saves or clears a local `http://...` dashboard API address only; it does not pair, test the connection, upload, acknowledge or clean up data.
+- The Sync action is disabled with the message that dashboard setup is required. No upload, acknowledgement, fake success or retention cleanup is implemented.
+- Debug APK 0.8.2+14 built successfully and installed on the connected phone with `adb install -r`, preserving existing data. The app launched successfully. The user tested Sync Status, pending changes, dashboard address save/clear and confirmed the increment passed.
+
+## App identity database migration (0.8.1+13)
+
+- Added SQLite schema version 3 with a local `app_identity` table.
+- The APK auto-creates one app identity row during database creation or upgrade. Workers do not fill a form for this.
+- The row stores `project_id`, `project_name`, a generated `device_id` and `created_at`. Future sync batches can use this information so the Windows dashboard knows which project/app/device sent the data.
+- No phone install was performed for this increment. Verification was local only: database tests passed, and auth migration tests passed including a version-1-to-version-3 upgrade.
+
+## Record edit update (0.8.0+12)
+
+- Added Edit record from Record detail.
+- Edit reuses the client-entry form with the client code locked and the original hotspot/visit date unchanged.
+- Workers can update client type, New-client details, tests, quantities, DIC referral and remark. Successful updates create an audit/outbox update operation for future sync.
+- Added a top-right save action on the edit screen so workers do not have to scroll to the bottom to update a long record.
+- Focused verification passed: hotspot workspace edit UI test, database tests and client-entry widget tests.
+
+## Record delete update (0.7.1+11)
+
+- Added Delete record on the record detail page, with an in-app confirmation dialog.
+- Delete uses the existing soft-delete repository operation, so the record disappears from Today's records and Daily summary while a delete operation remains queued for future sync.
+- Focused verification passed: hotspot workspace delete UI test, database tests and client-entry widget tests.
+
+## Today records update (0.7.0+10)
+
+- Added a signed-in home action for Today's records.
+- The list shows only the current worker's active records for today's visit date, with client code, hotspot, client type, tested markers and saved time.
+- Added a read-only detail page showing client fields, tests, distribution, recollection, DIC referral, saved time and remark. Edit/delete remain the next chunk.
+- Focused verification passed: database tests, client-entry widget tests and hotspot workspace widget tests including list/detail navigation.
+
+## Daily summary update (0.6.0+9)
+
+- Added a phone-side Daily Summary screen from the signed-in home page. It counts only the signed-in worker's active local records for today.
+- Summary totals include hotspots, records, unique people by client code, DIC referrals, New/Old/Not specified client type, tested/reactive counts for HIV/HCV/HBV/Syphilis, distribution totals and recollection totals.
+- Focused verification passed: database summary totals and hotspot workspace Daily Summary UI tests.
+
+## Encounter layout polish (0.5.0+7)
+
+- Enlarged the Testing, Distribution and Recollection headings.
+- Grouped distribution into a teal needles-and-syringes row and a contrasting other-supplies row. Grouped recollection into one separate colored row. Each row retains its three original quantity fields and database keys.
+
+## Client-code input polish (0.4.1+6)
+
+- Replaced the free-text client-code field with four-digit year, fixed `/MY/`, and 1–4 digit number inputs. The number is zero-padded on save, so `4` becomes `YYYY/MY/0004`.
+- Added spacing between New-client dropdown fields so adjoining outlined controls no longer appear to overlap.
+
+## Client-entry update (0.4.0+5)
+
+- Added the client-entry form from a selected hotspot. It requires a client code, supports optional New/Old classification, uses the confirmed New-client fields and defaults, and records test results, distributions, recollections, DIC referral and an optional remark.
+- The visit date is assigned locally on save. SQLite rejects a second active record for the same worker, client code, hotspot and date; the form explains that conflict and keeps the entered data. Quantities accept only nonnegative whole numbers.
+- A successful save writes the encounter, audit operation and future-sync outbox operation transactionally, then clears the client fields while keeping the selected hotspot ready for the next record.
+- Focused widget checks passed for the complete New-client save/reset flow and validation/duplicate handling. The full suite passed: 29 tests. `flutter analyze --no-pub` completed with no diagnostics. After regenerating Flutter package metadata, the debug APK was verified as version 0.4.0/build 5 and installed with `adb install -r` on the connected Android 16 phone, which preserves existing app data. A cold launch completed successfully in 1861 ms. No client record was created by the agent on the phone.
+
 ## Hotspot update (0.3.0+4)
 
 - Implemented owned hotspot list/search, new-hotspot form with typed peers, and read-only selection details. GPS supports permission handling, a 20-second attempt budget, retry and null-coordinate fallback.
@@ -39,7 +103,7 @@ Local Flutter checks completed with NO_PROXY/no_proxy set to localhost,127.0.0.1
 
 ## Remaining foundation work
 
-SQLite schema version 2, repository ownership rules, transactional audit/outbox writes, database summary queries, registration/login and locking are implemented; see 06_local_database.md and 07_accounts_and_lock.md. Database encryption/recovery remain foundation work. Client data-entry screens, summary screens and synchronization are not implemented. The development app must not be used for live outreach.
+SQLite schema version 3, repository ownership rules, transactional audit/outbox writes, database summary queries, registration/login and locking are implemented; see 06_local_database.md and 07_accounts_and_lock.md. Database encryption/recovery remain foundation work. Production synchronization is not implemented. The development app must not be used for live outreach.
 
 The generated release build still uses debug signing. Configure release signing before pilot distribution; a scaffold debug APK is not a production release.
 

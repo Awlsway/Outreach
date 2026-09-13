@@ -1,6 +1,6 @@
 # Local SQLite implementation
 
-Historical database-only increment: current schema version 2 and authentication additions are documented in 07_accounts_and_lock.md. The deferred-registration statements below describe version 1.
+Current SQLite schema version: 4. Version 2 added authentication credentials; version 3 adds app/device identity for future dashboard sync; version 4 adds local dashboard connection state. The original deferred-registration statements below describe version 1.
 
 ## Scope
 
@@ -19,18 +19,21 @@ The SQLite file is on the phone, not embedded with user records inside the APK. 
 | audit_operations | Ordered create/edit/delete history with actor, operation ID, entity, revision and JSON snapshots |
 | sync_outbox | Persistent pending-operation tracking; acknowledgement fields reserved for future sync |
 | sync_state | Per-worker last-successful-sync field, initially empty |
+| credentials | Password verifier material linked to a worker; added in schema version 2 |
+| app_identity | One local project/device identity row for future dashboard sync; added in schema version 3 |
+| dashboard_connection | One local dashboard pairing/address state row; added in schema version 4 |
 
 There is no permanent client directory. SQLite's internal sqlite_sequence table also appears because audit operations use an incrementing sequence.
 
 ## Code organization
 
-- lib/database/schema.dart: initial migration, columns, indexes, constraints and triggers.
+- lib/database/schema.dart: numbered migrations, columns, indexes, constraints and triggers.
 - lib/database/app_database.dart: database opening, foreign-key activation, versioning and close lifecycle.
 - lib/database/outreach_repository.dart: worker-scoped storage methods and atomic mutation/audit/outbox transactions.
 - lib/main.dart: awaits database creation before showing the existing app shell.
 - test/database_test.dart: native SQLite tests with isolated temporary database files.
 
-Future schema changes must add numbered migrations and increment the schema version. Unsupported downgrades fail rather than deleting the database. There are no historical schema versions to migrate yet.
+Future schema changes must add numbered migrations and increment the schema version. Unsupported downgrades fail rather than deleting the database. Existing historical migrations now cover version 1 → 2 credentials, version 2 → 3 app identity and version 3 → 4 dashboard connection state.
 
 ## Implemented guarantees
 
@@ -44,10 +47,12 @@ Future schema changes must add numbered migrations and increment the schema vers
 - A mutation, audit entry and pending operation commit together or all roll back.
 - Daily database queries count distinct client codes for unique people and filter by worker, local day and active state.
 - No acknowledgement or seven-day cleanup is implemented, so older unsynchronized data cannot be removed automatically.
+- The app identity row is created automatically. It is local configuration, not a worker-entered record and not an audited worker operation.
+- The dashboard connection row is created automatically as Not configured. It is local configuration, not a sync acknowledgement and not an audited worker operation.
 
 ## Verification
 
-Nine database tests plus the existing launch test passed. They cover table creation and integrity, reopen persistence, ownership, duplicate keys across sites/days/workers, concurrent saves, input constraints, New/Old transitions, immutable dates, stale revisions, deletion/replacement, transactional rollback and daily unique-person totals. Code analysis passed with no issues.
+Nine database tests plus authentication migration tests passed. They cover table creation and integrity, app identity creation/persistence, version-1 upgrade to current schema, reopen persistence, ownership, duplicate keys across sites/days/workers, concurrent saves, input constraints, New/Old transitions, immutable dates, stale revisions, deletion/replacement, transactional rollback and daily unique-person totals.
 
 Tests run through sqflite_common_ffi against real SQLite files on the development computer, not a mocked SQL engine. Device creation is checked separately in 05_build_status.md.
 

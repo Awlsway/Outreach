@@ -1,4 +1,9 @@
 import 'package:sqflite/sqflite.dart';
+import 'package:uuid/uuid.dart';
+
+const _projectId = 'ansvk_outreach';
+const _projectName = 'ANSVK Outreach';
+const _uuid = Uuid();
 
 const quantityFields = [
   'dist_3cc',
@@ -117,5 +122,42 @@ Future<void> migrate(Database db, int from, int to) async {
       failed_attempts INTEGER NOT NULL DEFAULT 0 CHECK(failed_attempts >= 0),
       blocked_until TEXT
     )''');
+  }
+  if (from < 3 && to >= 3) {
+    await db.execute('''CREATE TABLE app_identity (
+      singleton_id INTEGER PRIMARY KEY NOT NULL CHECK(singleton_id = 1),
+      project_id TEXT NOT NULL CHECK(length(trim(project_id)) > 0 AND project_id = trim(project_id)),
+      project_name TEXT NOT NULL CHECK(length(trim(project_name)) > 0 AND project_name = trim(project_name)),
+      device_id TEXT NOT NULL UNIQUE CHECK(length(trim(device_id)) > 0 AND device_id = trim(device_id)),
+      created_at TEXT NOT NULL
+    )''');
+    await db.insert('app_identity', {
+      'singleton_id': 1,
+      'project_id': _projectId,
+      'project_name': _projectName,
+      'device_id': _uuid.v4(),
+      'created_at': DateTime.now().toUtc().toIso8601String(),
+    }, conflictAlgorithm: ConflictAlgorithm.ignore);
+  }
+  if (from < 4 && to >= 4) {
+    final now = DateTime.now().toUtc().toIso8601String();
+    await db.execute('''CREATE TABLE dashboard_connection (
+      singleton_id INTEGER PRIMARY KEY NOT NULL CHECK(singleton_id = 1),
+      status TEXT NOT NULL CHECK(status IN ('Not configured', 'Paired')),
+      dashboard_url TEXT,
+      dashboard_id TEXT,
+      dashboard_name TEXT,
+      paired_at TEXT,
+      updated_at TEXT NOT NULL,
+      CHECK(status = 'Not configured' OR (
+        dashboard_url IS NOT NULL AND length(trim(dashboard_url)) > 0
+        AND dashboard_id IS NOT NULL AND length(trim(dashboard_id)) > 0
+      ))
+    )''');
+    await db.insert('dashboard_connection', {
+      'singleton_id': 1,
+      'status': 'Not configured',
+      'updated_at': now,
+    }, conflictAlgorithm: ConflictAlgorithm.ignore);
   }
 }

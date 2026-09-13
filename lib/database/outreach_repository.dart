@@ -24,6 +24,11 @@ class OutreachRepository {
   static const _uuid = Uuid();
   Database get _db => database.connection;
 
+  /// Device/project metadata that future sync batches will send to the
+  /// dashboard before operation payloads.
+  Future<Row> appIdentity() async =>
+      (await _db.query('app_identity', limit: 1)).single;
+
   String get _owner {
     final value = currentWorkerId();
     if (value == null || value.isEmpty) throw StateError('No worker session');
@@ -203,6 +208,17 @@ class OutreachRepository {
     orderBy: 'visit_date DESC, created_at DESC, encounter_id',
   );
 
+  Future<List<Row>> todayEncounters() => _db.rawQuery(
+    '''
+    SELECT e.*, h.name AS hotspot_name
+    FROM encounters e JOIN hotspots h
+      ON h.hotspot_id = e.hotspot_id AND h.owner_id = e.owner_id
+    WHERE e.owner_id = ? AND e.visit_date = ? AND e.deleted_at IS NULL
+    ORDER BY e.created_at DESC, e.encounter_id
+    ''',
+    [_owner, _day(_clock())],
+  );
+
   Future<Row?> encounter(String id) async {
     final rows = await _db.query(
       'encounters',
@@ -286,9 +302,21 @@ class OutreachRepository {
 
   Future<Row> todaySummary() async {
     final rows = await _db.rawQuery(
-      '''SELECT COUNT(DISTINCT hotspot_id) AS hotspots,
-      COUNT(DISTINCT client_code) AS clients_served,
+      '''SELECT COUNT(*) AS client_records,
+      COUNT(DISTINCT hotspot_id) AS hotspots,
+      COUNT(DISTINCT client_code) AS unique_people,
+      COALESCE(SUM(CASE WHEN client_kind = 'New' THEN 1 ELSE 0 END),0) AS new_clients,
+      COALESCE(SUM(CASE WHEN client_kind = 'Old' THEN 1 ELSE 0 END),0) AS old_clients,
+      COALESCE(SUM(CASE WHEN client_kind IS NULL THEN 1 ELSE 0 END),0) AS unspecified_clients,
       COALESCE(SUM(CASE WHEN hiv != 'No' THEN 1 ELSE 0 END),0) AS hiv_tested,
+      COALESCE(SUM(CASE WHEN hiv = 'Reactive' THEN 1 ELSE 0 END),0) AS hiv_reactive,
+      COALESCE(SUM(CASE WHEN hcv != 'No' THEN 1 ELSE 0 END),0) AS hcv_tested,
+      COALESCE(SUM(CASE WHEN hcv = 'Reactive' THEN 1 ELSE 0 END),0) AS hcv_reactive,
+      COALESCE(SUM(CASE WHEN hbv != 'No' THEN 1 ELSE 0 END),0) AS hbv_tested,
+      COALESCE(SUM(CASE WHEN hbv = 'Reactive' THEN 1 ELSE 0 END),0) AS hbv_reactive,
+      COALESCE(SUM(CASE WHEN syphilis != 'No' THEN 1 ELSE 0 END),0) AS syphilis_tested,
+      COALESCE(SUM(CASE WHEN syphilis = 'Reactive' THEN 1 ELSE 0 END),0) AS syphilis_reactive,
+      COALESCE(SUM(CASE WHEN refer_dic = 1 THEN 1 ELSE 0 END),0) AS dic_referrals,
       ${quantityFields.map((f) => 'COALESCE(SUM($f),0) AS $f').join(',')}
       FROM encounters WHERE owner_id = ? AND visit_date = ? AND deleted_at IS NULL''',
       [_owner, _day(_clock())],
@@ -302,4 +330,77 @@ class OutreachRepository {
     WHERE a.actor_id = ? AND o.acknowledged_at IS NULL ORDER BY a.sequence''',
     [_owner],
   );
+
+  Future<Row> syncStatus() async {
+    final owner = _owner;
+    final pending = (await _db.rawQuery(
+      '''
+        SELECT COUNT(*) AS total,
+        COALESCE(SUM(CASE WHEN a.entity_type = 'worker' THEN 1 ELSE 0 END),0) AS workers,
+        COALESCE(SUM(CASE WHEN a.entity_type = 'hotspot' THEN 1 ELSE 0 END),0) AS hotspots,
+        COALESCE(SUM(CASE WHEN a.entity_type = 'encounter' THEN 1 ELSE 0 END),0) AS encounters,
+        COALESCE(SUM(CASE WHEN a.action = 'create' THEN 1 ELSE 0 END),0) AS creates,
+        COALESCE(SUM(CASE WHEN a.action = 'update' THEN 1 ELSE 0 END),0) AS updates,
+        COALESCE(SUM(CASE WHEN a.action = 'delete' THEN 1 ELSE 0 END),0) AS deletes
+        FROM audit_operations a
+        JOIN sync_outbox o USING(operation_id)
+        WHERE a.actor_id = ? AND o.acknowledged_at IS NULL
+        ''',
+      [owner],
+    )).single;
+    final state = (await _db.query(
+      'sync_state',
+      where: 'worker_id = ?',
+      whereArgs: [owner],
+      limit: 1,
+    )).single;
+    final identity = await appIdentity();
+    final dashboard = (await _db.query(
+      'dashboard_connection',
+      limit: 1,
+    )).single;
+    return {
+      'pending_operations': pending['total'] ?? 0,
+      'pending_workers': pending['workers'] ?? 0,
+      'pending_hotspots': pending['hotspots'] ?? 0,
+      'pending_encounters': pending['encounters'] ?? 0,
+      'pending_creates': pending['creates'] ?? 0,
+      'pending_updates': pending['updates'] ?? 0,
+      'pending_deletes': pending['deletes'] ?? 0,
+      'last_successful_sync_at': state['last_successful_sync_at'],
+      'project_id': identity['project_id'],
+      'project_name': identity['project_name'],
+      'device_id': identity['device_id'],
+      'device_created_at': identity['created_at'],
+      'dashboard_status': dashboard['status'],
+      'dashboard_url': dashboard['dashboard_url'],
+      'dashboard_name': dashboard['dashboard_name'],
+      'dashboard_id': dashboard['dashboard_id'],
+      'paired_at': dashboard['paired_at'],
+    };
+  }
+
+  Future<void> saveDashboardAddress(String address) async {
+    final value = address.trim();
+    if (value.isEmpty) throw ArgumentError('Dashboard address is required');
+    await _db.update('dashboard_connection', {
+      'dashboard_url': value,
+      'status': 'Not configured',
+      'dashboard_id': null,
+      'dashboard_name': null,
+      'paired_at': null,
+      'updated_at': _clock().toUtc().toIso8601String(),
+    }, where: 'singleton_id = 1');
+  }
+
+  Future<void> clearDashboardAddress() async {
+    await _db.update('dashboard_connection', {
+      'dashboard_url': null,
+      'status': 'Not configured',
+      'dashboard_id': null,
+      'dashboard_name': null,
+      'paired_at': null,
+      'updated_at': _clock().toUtc().toIso8601String(),
+    }, where: 'singleton_id = 1');
+  }
 }
