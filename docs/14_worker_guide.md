@@ -1,0 +1,118 @@
+# ANSVK Outreach worker guide
+
+This guide explains the current Android APK behavior for outreach workers and the data assistant. The app works offline on the phone. Real dashboard sync is not available yet.
+
+## First use and sign in
+
+1. Open the app.
+2. If this is first use on the phone, create your account with a username and password.
+3. Remember the password. The app does not have password recovery yet.
+4. After registration or sign in, the home screen shows the signed-in username at the bottom.
+
+The app locks after one minute of inactivity. Unlock with the same password. You can also use the lock button at the top of the home screen.
+
+## Hotspots
+
+Open **Hotspots** from the home screen.
+
+To create a hotspot:
+
+1. Tap **New hotspot**.
+2. Let the app try to capture GPS.
+3. Enter the hotspot name.
+4. Enter one or more peer names if needed.
+5. If GPS is unavailable, continue without GPS.
+6. Tap **Save hotspot**.
+
+Hotspots are saved on the phone under the signed-in worker account. Workers can only see their own hotspots. Hotspot editing is not available in this phase.
+
+## Client records
+
+Open **Hotspots**, select a hotspot, then tap **Enter client record**.
+
+Client code uses this format:
+
+`YYYY/MY/0000`
+
+The app helps enter this by keeping `MY` fixed and padding the final number. For example, entering `4` saves `2026/MY/0004`.
+
+Only client code is required before saving. Other fields can stay at their defaults if not available.
+
+For client type:
+
+- **Not specified** is allowed.
+- **Old** does not load previous information.
+- **New** opens the additional client information dialog.
+
+Testing choices:
+
+- **No** means not tested.
+- **Non reactive** and **Reactive** both count as tested.
+
+Distribution and recollection quantities must be whole numbers of zero or more.
+
+After saving a client record, the same hotspot remains selected and the form resets for the next client.
+
+## Daily summary
+
+Open **Daily summary** from the home screen.
+
+The summary counts only the signed-in worker's active records for today on this phone. It shows:
+
+- Hotspots visited.
+- Total client records.
+- Unique people by client code.
+- DIC referrals.
+- New, Old and Not specified client totals.
+- Tested and Reactive totals.
+- Distribution totals.
+- Recollection totals.
+
+A client who appears at two hotspots on the same day counts as two records but one unique person.
+
+## Today's records
+
+Open **Today's records** from the home screen.
+
+The list shows today's active client records for the signed-in worker. Tap a record to view details.
+
+From the detail screen, the worker can:
+
+- Edit the record.
+- Delete the record.
+
+Delete is a soft delete. The record disappears from active views and summary, but a delete change remains pending for future dashboard sync.
+
+## Sync status
+
+Open **Sync status** from the home screen.
+
+This screen is for checking pending changes only. Real sync is not active yet because the Windows dashboard is not built and paired.
+
+The screen shows:
+
+- Pending changes count.
+- Pending change breakdown.
+- Whether a dashboard address is saved.
+- Whether the phone is paired.
+- Whether sync is ready.
+- App/project/device identity for future support.
+
+**Ready to sync** remains **No** in this version.
+
+The **Pending changes** screen shows operation type, action, revision and time. It does not show full client payload details.
+
+The **Dashboard address** screen can save or clear a future local dashboard API address, such as:
+
+`http://192.168.1.20:8080/api/v1`
+
+Saving an address does not pair the phone, test the connection, upload data, acknowledge data or delete records.
+
+## Important limitations
+
+- Do not use this development build for real client information yet.
+- Real Windows dashboard sync is not implemented.
+- The app will not remove old client records until real dashboard acknowledgement exists.
+- Password recovery is not implemented.
+- Database encryption/recovery remains pre-pilot work.
+- Uninstalling the app or clearing app data can remove unsynced local records.

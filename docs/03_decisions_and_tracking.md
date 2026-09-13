@@ -67,4 +67,4 @@ The entries below preserve the original questions. 04_development_specification.
 
 ## Next work package
 
-Client encounter creation, daily summary, today's list/detail, record delete, record edit and sync-status placeholder are complete for this increment. Sync architecture is locked in 12_sync_architecture_decision.md, and the future dashboard API handover contract is drafted in 13_dashboard_api_contract.md. The next APK sync step is pairing/address design before real upload. Database encryption/recovery remain pre-pilot requirements. Desktop sync remains a separate future integration.
+Client encounter creation, daily summary, today's list/detail, record delete, record edit and sync-status placeholder are complete for this increment. Sync architecture is locked in 12_sync_architecture_decision.md, the future dashboard API handover contract is drafted in 13_dashboard_api_contract.md, and a current worker guide is available in 14_worker_guide.md. The next APK sync step is pairing/address design before real upload. Database encryption/recovery remain pre-pilot requirements. Desktop sync remains a separate future integration.
