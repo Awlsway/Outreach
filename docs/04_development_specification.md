@@ -1,6 +1,6 @@
 # ANSVK Outreach development specification
 
-Status: Android foundation, SQLite schema v3, offline accounts/lock, hotspot workflow, client encounter creation and phone-side daily summary implemented. See 05_build_status.md for validation, 07_accounts_and_lock.md for accounts, 08_hotspots.md for hotspots, 09_client_entry.md for encounters and 10_daily_summary.md for summary behavior.
+Status: Android foundation, SQLite schema v4, offline accounts/lock, hotspot workflow, client encounter creation, phone-side daily summary and sync-status preparation implemented. See 05_build_status.md for validation, 07_accounts_and_lock.md for accounts, 08_hotspots.md for hotspots, 09_client_entry.md for encounters, 10_daily_summary.md for summary behavior and 15_security_recovery_plan.md for pre-pilot security/recovery planning.
 
 This specification implements 01_plan.md and the acceptance checks in 02_implementation_plan.md. Defaults below are project-manager decisions, not additional user-confirmed requirements. They allow development to proceed and can be revised without changing the confirmed scope.
 
@@ -63,7 +63,7 @@ Client-code-only required input applies to the encounter form, not account regis
 
 ## Database invariants and operations
 
-Tables: workers, hotspots, hotspot_peers, encounters, audit_operations, sync_outbox, sync_state, credentials and app_identity. No permanent client table is needed. Use schema migrations from version 1.
+Tables: workers, hotspots, hotspot_peers, encounters, audit_operations, sync_outbox, sync_state, credentials, app_identity and dashboard_connection. No permanent client table is needed. Use schema migrations from version 1.
 
 - Every repository call obtains the worker ID from the authenticated session, rather than trusting an ID passed from a form.
 - Encounters reference hotspots belonging to the same worker. Apply this rule on insert and update.

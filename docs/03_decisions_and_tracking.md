@@ -1,10 +1,10 @@
 # ANSVK Outreach decisions and delivery tracking
 
-Updated: 12 September 2026.
+Updated: 14 September 2026.
 
 ## Current status
 
-M1 is complete as a planning baseline. SQLite schema version 4, accounts/locking, hotspot search/creation with typed peers and GPS fallback, client encounter creation, phone-side daily summary, today's record list/detail, record delete, record edit and a sync-status placeholder are implemented. Schema version 3 adds local app/project/device identity for future dashboard sync; schema version 4 adds local dashboard connection state. Hotspot tests cover simulated GPS, saved data, search, lock/draft preservation and worker isolation. GPS success/fallback persistence has been confirmed from the user's phone database. Client-entry tests cover fields, default values, validation, duplicate prevention and reset after save. Daily summary tests cover signed-in worker totals and unique people by client code. Today's records tests cover signed-in worker list/detail navigation, soft-delete and edit update. Database encryption/recovery remain pre-pilot work. Production sync remains unimplemented. Final verification and device evidence are tracked in 05_build_status.md.
+M1 is complete as a planning baseline. SQLite schema version 4, accounts/locking, hotspot search/creation with typed peers and GPS fallback, client encounter creation, phone-side daily summary, today's record list/detail, record delete, record edit and a sync-status placeholder are implemented. Schema version 3 adds local app/project/device identity for future dashboard sync; schema version 4 adds local dashboard connection state. Hotspot tests cover simulated GPS, saved data, search, lock/draft preservation and worker isolation. GPS success/fallback persistence has been confirmed from the user's phone database. Client-entry tests cover fields, default values, validation, duplicate prevention and reset after save. Daily summary tests cover signed-in worker totals and unique people by client code. Today's records tests cover signed-in worker list/detail navigation, soft-delete and edit update. Security/recovery decisions are confirmed in 15_security_recovery_plan.md. Database encryption remains pre-pilot work. Production sync remains unimplemented. Final verification and device evidence are tracked in 05_build_status.md.
 
 | Milestone | Status | Evidence / next action |
 | --- | --- | --- |
@@ -26,7 +26,7 @@ The entries below preserve the original questions. 04_development_specification.
 | D03 | Gender default | No preselection; optional rather than silently assigning a gender | M4 |
 | D04 | Testing and referral defaults | Testing No (not tested); referral No | M4 |
 | D05 | Retention boundary | Keep today and the six preceding local calendar dates; purge older eligible data only after acknowledgement | M6 |
-| D06 | Unlock and forgotten password | Password unlock; choose a recovery design that does not erase unsynced data. Recovery remains unresolved pending account design | M3 / before pilot |
+| D06 | Unlock and forgotten password | Password unlock; password recovery suspended for first pilot. If unsynced data may be lost, data assistant approves starting again. No password bypass or technical extraction | M3 / before pilot |
 | D07 | Unavailable GPS | Null latitude/longitude with Unavailable status; never fabricate a real coordinate | M3 |
 | D08 | Phone compatibility | Obtain Android versions and one representative device; choose minimum supported version during technical evaluation | M2 |
 | D09 | Existing form layout | Design from the confirmed fields unless a paper/Excel reference is supplied | M1; nonblocking |
@@ -51,6 +51,11 @@ The entries below preserve the original questions. 04_development_specification.
 - Seven-day client retention only after successful sync; hotspots remain; desktop retains history.
 - Windows dashboard is a separate project.
 - Sync channel is Android APK to Windows dashboard over the office local network using a dashboard-hosted local HTTP API, with manual worker-triggered upload and per-operation acknowledgement.
+- Password recovery is suspended for the first pilot; privacy is prioritized over unsynced data recovery.
+- Worker phones must have a device passcode before app use.
+- Data assistant approves starting again when unsynced data may be lost.
+- Future dashboard warns when a phone has not synced for 3 days.
+- Data assistant can mark phones as lost or retired in the dashboard.
 
 ## Risks and responses
 
@@ -58,7 +63,7 @@ The entries below preserve the original questions. 04_development_specification.
 | --- | --- | --- |
 | Desktop service is not yet available | Preserve all unsynced data; deliver contract and development tests; label production sync as pending | Project manager / future desktop implementer |
 | Storage grows while no sync is available | Show pending counts and failures; assess realistic volume during pilot; never silently delete unsynced records | Mobile implementer |
-| Lost phone, forgotten password or uninstall before sync | Resolve recovery and storage protection design before pilot; explain local-data limitations in worker guide | Project manager / mobile implementer |
+| Lost phone, forgotten password or uninstall before sync | Password recovery suspended for first pilot; data assistant approves restart when data loss is accepted; explain local-data limitations in worker guide | Project manager / mobile implementer |
 | Same username created independently on different phones | Use generated worker/device IDs; define reconciliation with desktop team | Mobile and future desktop implementers |
 | Duplicate rules bypassed by rapid saves or edits | Enforce storage constraint and atomic transactions; verify with A08 | Mobile implementer |
 | Latest edit lost during stale acknowledgement or cleanup | Track revisions, acknowledge individually, and test cleanup against latest state | Mobile implementer |
@@ -67,4 +72,4 @@ The entries below preserve the original questions. 04_development_specification.
 
 ## Next work package
 
-Client encounter creation, daily summary, today's list/detail, record delete, record edit and sync-status placeholder are complete for this increment. Sync architecture is locked in 12_sync_architecture_decision.md, the future dashboard API handover contract is drafted in 13_dashboard_api_contract.md, and a current worker guide is available in 14_worker_guide.md. The next APK sync step is pairing/address design before real upload. Database encryption/recovery remain pre-pilot requirements. Desktop sync remains a separate future integration.
+Client encounter creation, daily summary, today's list/detail, record delete, record edit and sync-status placeholder are complete for this increment. Sync architecture is locked in 12_sync_architecture_decision.md, the future dashboard API handover contract is drafted in 13_dashboard_api_contract.md, a current worker guide is available in 14_worker_guide.md, and security/recovery decisions are confirmed in 15_security_recovery_plan.md. The next APK sync step is pairing/address design before real upload. Database encryption remains a pre-pilot requirement. Desktop sync remains a separate future integration.
