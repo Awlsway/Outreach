@@ -172,7 +172,7 @@ The dashboard must not receive or store APK password verifier material.
 
 ## Implementation backlog from this plan
 
-1. Choose database encryption package and key storage design.
+1. Review and accept the proposed database encryption package/key design in 16_database_encryption_plan.md.
 2. Implement encrypted database migration.
 3. Add technical tests for upgrade without data loss.
 4. Add worker-facing warning text that password recovery is suspended and unsynced data may be lost if the password is forgotten.

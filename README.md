@@ -2,8 +2,9 @@
 
 Offline Android app for four outreach workers. Local SQLite storage, offline
 registration/login, logout, the one-minute lock, hotspot search/creation with
-GPS fallback, and offline client entry are implemented. Desktop sync, encounter
-editing/deletion, and summaries are next.
+GPS fallback, offline client entry, today's record review/edit/delete, daily
+summary, and sync-status preparation are implemented. Desktop sync and database
+encryption are next.
 
 ## Structure
 
@@ -16,6 +17,7 @@ Database implementation details are in [the database guide](docs/06_local_databa
 Account behavior and testing are in [accounts and lock](docs/07_accounts_and_lock.md).
 Hotspot behavior and the phone walkthrough are in [hotspots](docs/08_hotspots.md).
 Client-entry behavior is in [client entry](docs/09_client_entry.md).
+Database encryption planning is in [database encryption plan](docs/16_database_encryption_plan.md).
 
 Start with [the development specification](docs/04_development_specification.md)
 and [project status](docs/03_decisions_and_tracking.md).
