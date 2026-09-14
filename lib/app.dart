@@ -403,7 +403,8 @@ class _PasswordRecoveryWarning extends StatelessWidget {
               child: Text(
                 'Remember your password. Password recovery is not available '
                 'in this pilot, and unsynced records may be lost if you cannot '
-                'sign in.',
+                'sign in.\n\nUse this app only on a phone with a device screen '
+                'lock or passcode.',
                 style: TextStyle(color: colors.onErrorContainer),
               ),
             ),

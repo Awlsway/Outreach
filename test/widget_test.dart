@@ -136,7 +136,8 @@ void main() {
       const warning =
           'Remember your password. Password recovery is not available '
           'in this pilot, and unsynced records may be lost if you cannot '
-          'sign in.';
+          'sign in.\n\nUse this app only on a phone with a device screen '
+          'lock or passcode.';
       await tester.pumpWidget(
         OutreachApp(session: session, hasAccounts: false),
       );

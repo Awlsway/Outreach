@@ -7,7 +7,7 @@ Account increment: 0.2.1+3. SQLite schema version: 2. Hotspot screens were subse
 - First use opens Create your account. Existing accounts open Sign in after app restart.
 - Registration accepts a trimmed, case-sensitive username (1–64 characters), a password (8–128 characters), and matching confirmation. Passwords are not trimmed.
 - Registration Password and Confirm password fields have independent eye buttons; Sign in has an eye button for Password. All start hidden. Toggling preserves typed text and switches the accessible Show/Hide label. Visibility resets when switching forms or submitting. Password unlock continues to use a hidden field.
-- Create account and sign-in screens warn workers to remember the password because password recovery is not available in the pilot and unsynced records may be lost if they cannot sign in.
+- Create account and sign-in screens warn workers to remember the password because password recovery is not available in the pilot and unsynced records may be lost if they cannot sign in. The same warning tells workers to use the app only on a phone with a device screen lock or passcode.
 - Successful registration signs the worker in. A second local account can be created from the sign-in page, with a distinct worker identity.
 - Login and password unlock work entirely offline. A successful login creates only an in-memory session; restarting the process requires login again.
 - Signed-in home shows the username, manual lock and logout controls. Hotspot/client screens remain outside this change.
