@@ -1,6 +1,6 @@
 # Database encryption plan
 
-Status: proposed implementation plan, 14 September 2026.
+Status: code implemented, pending phone migration verification, 14 September 2026.
 
 This document locks the planned approach for encrypting the Android APK's local SQLite database before any real client pilot. It is based on the current codebase, where all production database access goes through `AppDatabase.open()` and the app stores data in `ansvk_outreach.db` under Android app-private storage.
 
@@ -60,13 +60,14 @@ This migration is for development data and pilot preparation. It is not a dashbo
 
 ## Android implementation notes
 
-Planned code changes:
+Implemented code changes:
 
-- Replace production `sqflite` import/use in `lib/database/app_database.dart` with `sqflite_sqlcipher`.
-- Keep `Database`/`DatabaseFactory` typing compatible where possible so repository code does not need large changes.
-- Add `flutter_secure_storage` for the database passphrase.
-- Add a small database-key service responsible only for creating/reading the local database passphrase.
-- Add Android ProGuard keep rule:
+- Production `AppDatabase.open()` uses `sqflite_sqlcipher` when tests do not inject a database factory.
+- Tests continue to inject `sqflite_common_ffi`; repository/schema code uses `sqflite_common` types.
+- The plain `sqflite` app dependency was removed so Android does not package the ordinary sqflite plugin directly.
+- `flutter_secure_storage` stores the generated local database passphrase in namespace `ansvk_outreach_database_key`.
+- `DatabaseKeyStore` creates/reads the local database passphrase.
+- Android ProGuard keep rule was added:
 
 ```proguard
 -keep class net.sqlcipher.** { *; }
@@ -74,15 +75,15 @@ Planned code changes:
 
 - Keep `android:allowBackup="false"`.
 
-## Testing plan
+## Testing status
 
-Before installing to the phone:
+Completed before installing to the phone:
 
-1. Run focused database tests that still use `sqflite_common_ffi` for schema/repository behavior.
-2. Run auth/widget tests to confirm account and lock behavior still works.
-3. Build debug APK successfully.
+1. Focused database tests passed with `sqflite_common_ffi`.
+2. Full Flutter test suite passed.
+3. Debug APK build passed with `sqflite_sqlcipher` and `flutter_secure_storage`.
 
-On the phone:
+Still required on the phone:
 
 1. Install over an existing development APK with test data.
 2. Sign in using the existing worker account.
@@ -108,4 +109,3 @@ This work is accepted when:
 - debug APK build passes;
 - phone walkthrough confirms existing records survive the migration;
 - project docs no longer say database encryption is unimplemented.
-

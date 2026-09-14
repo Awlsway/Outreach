@@ -1,5 +1,15 @@
 # Scaffold build status
 
+## Database encryption implementation (0.9.0+15)
+
+- Added SQLCipher database opening for production Android through `sqflite_sqlcipher`.
+- Added `flutter_secure_storage` for a generated local database passphrase. The passphrase is created by the app, stored locally, and is not derived from the worker password.
+- Removed the direct plain `sqflite` app dependency. Tests still use `sqflite_common_ffi` through an injected database factory.
+- Added a one-time plaintext development-database migration path. If the existing `ansvk_outreach.db` is a valid unencrypted development database, the app exports it into an encrypted SQLCipher database, verifies integrity, replaces the old file only after verification, and does not silently delete data after a failed migration.
+- Added Android SQLCipher ProGuard keep rule.
+- Validation completed on the development computer: full Flutter test suite passed, and debug APK 0.9.0+15 built successfully.
+- Phone install/migration verification has not been performed yet for this increment. Before real pilot use, install over the current phone test data and confirm existing records survive.
+
 ## Sync status preparation
 
 - Added a signed-in **Sync status** screen.

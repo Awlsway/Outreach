@@ -54,6 +54,11 @@ void main() {
     await tester.pump(const Duration(milliseconds: 300));
   }
 
+  Finder visibleListScrollable() => find.descendant(
+    of: find.byType(ListView).last,
+    matching: find.byType(Scrollable),
+  ).first;
+
   Future<void> start(WidgetTester tester) async {
     await tester.runAsync(
       () => session.signIn('Alice', 'password1', register: true),
@@ -230,41 +235,82 @@ void main() {
     expect(find.text('Dashboard'), findsOneWidget);
     expect(find.text('Address'), findsOneWidget);
     expect(find.text('Paired at'), findsOneWidget);
+    await tester.scrollUntilVisible(
+      find.text('Sync readiness'),
+      200,
+      scrollable: visibleListScrollable(),
+    );
     expect(find.text('Sync readiness'), findsOneWidget);
     expect(find.text('Dashboard address saved'), findsOneWidget);
     expect(find.text('Dashboard paired'), findsOneWidget);
     expect(find.text('Ready to sync'), findsOneWidget);
+    await tester.scrollUntilVisible(
+      find.text('Pending details'),
+      200,
+      scrollable: visibleListScrollable(),
+    );
     expect(find.text('Pending details'), findsOneWidget);
     expect(find.text('Worker changes'), findsOneWidget);
     expect(find.text('Hotspot changes'), findsOneWidget);
     expect(find.text('Client record changes'), findsOneWidget);
     expect(find.text('ANSVK Outreach'), findsWidgets);
+    await tester.scrollUntilVisible(
+      find.text('View pending changes'),
+      200,
+      scrollable: visibleListScrollable(),
+    );
     expect(find.text('View pending changes'), findsOneWidget);
     await tap(tester, find.byKey(const ValueKey('view-pending-changes')));
     expect(find.text('Pending changes'), findsOneWidget);
     expect(find.text('Create worker account'), findsOneWidget);
     expect(find.text('Create hotspot'), findsOneWidget);
     expect(find.text('Create client record'), findsOneWidget);
-    await tester.pageBack();
-    await tester.pumpAndSettle();
+    await tap(tester, find.byTooltip('Back'));
     expect(find.text('Sync status'), findsOneWidget);
+    await tester.scrollUntilVisible(
+      find.text('Set dashboard address'),
+      200,
+      scrollable: visibleListScrollable(),
+    );
     expect(find.text('Set dashboard address'), findsOneWidget);
+    await tester.scrollUntilVisible(
+      find.text('Sync unavailable until dashboard setup'),
+      200,
+      scrollable: visibleListScrollable(),
+    );
     expect(find.text('Sync unavailable until dashboard setup'), findsOneWidget);
     await tap(
       tester,
       find.byKey(const ValueKey('configure-dashboard-address')),
     );
-    expect(find.text('Dashboard address'), findsOneWidget);
+    expect(find.text('Dashboard address'), findsWidgets);
     expect(find.text('Save address only'), findsOneWidget);
     await tester.enterText(
       find.byKey(const ValueKey('dashboard-address')),
       'http://192.168.1.20:8080/api/v1',
     );
     await tap(tester, find.byKey(const ValueKey('save-dashboard-address')));
+    await flush(tester);
+    await tester.pumpAndSettle();
     expect(find.text('Sync status'), findsOneWidget);
+    await tester.scrollUntilVisible(
+      find.text('http://192.168.1.20:8080/api/v1'),
+      -200,
+      scrollable: visibleListScrollable(),
+    );
     expect(find.text('http://192.168.1.20:8080/api/v1'), findsOneWidget);
     expect(find.text('Not configured'), findsOneWidget);
+    await tester.scrollUntilVisible(
+      find.text('Dashboard address saved'),
+      200,
+      scrollable: visibleListScrollable(),
+    );
     expect(find.text('Dashboard address saved'), findsOneWidget);
+    await tester.scrollUntilVisible(
+      find.text('Set dashboard address'),
+      200,
+      scrollable: visibleListScrollable(),
+    );
     await tap(
       tester,
       find.byKey(const ValueKey('configure-dashboard-address')),

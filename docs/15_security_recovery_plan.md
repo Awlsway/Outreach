@@ -40,12 +40,13 @@ For this project phase, client privacy wins when these two goals conflict. The a
 - Android screenshots/recent-app snapshots are blocked with secure-window protection.
 - Android backup is disabled in the manifest.
 - Credential material is not included in audit or future sync payloads.
+- SQLCipher database opening is implemented in code, using a generated local passphrase stored through secure storage.
 
-These protections are useful, but they do not equal full database encryption.
+Phone migration verification is still required before treating this as accepted pilot protection.
 
 ## Current limitations
 
-- The SQLite database is app-private but not encrypted at rest.
+- SQLCipher database opening is implemented, but migration over the user's existing phone test database has not been verified yet.
 - Real Windows dashboard sync is not implemented yet.
 - Retention cleanup is not implemented yet.
 - Password recovery is not implemented and should remain suspended for now.
@@ -172,9 +173,9 @@ The dashboard must not receive or store APK password verifier material.
 
 ## Implementation backlog from this plan
 
-1. Review and accept the proposed database encryption package/key design in 16_database_encryption_plan.md.
-2. Implement encrypted database migration.
-3. Add technical tests for upgrade without data loss.
+1. Verify encrypted database migration on the user's phone test database.
+2. Confirm fresh encrypted install behavior on phone.
+3. Add any additional technical tests needed after phone findings.
 4. Add worker-facing warning text that password recovery is suspended and unsynced data may be lost if the password is forgotten.
 5. Keep password reset/recovery out of the APK until a future approved design exists.
 6. Add dashboard device states: active, lost and retired.
