@@ -209,6 +209,10 @@ class _AuthFormState extends State<AuthForm> {
                           : 'Your account works offline on this phone.',
                       textAlign: TextAlign.center,
                     ),
+                    if (!widget.unlock) ...[
+                      const SizedBox(height: 16),
+                      const _PasswordRecoveryWarning(),
+                    ],
                     const SizedBox(height: 28),
                     if (!widget.unlock) ...[
                       TextFormField(
@@ -374,6 +378,36 @@ class _AuthFormState extends State<AuthForm> {
               ),
             ),
           ),
+        ),
+      ),
+    );
+  }
+}
+
+class _PasswordRecoveryWarning extends StatelessWidget {
+  const _PasswordRecoveryWarning();
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    return Card(
+      color: colors.errorContainer,
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Icon(Icons.warning_amber_rounded, color: colors.onErrorContainer),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                'Remember your password. Password recovery is not available '
+                'in this pilot, and unsynced records may be lost if you cannot '
+                'sign in.',
+                style: TextStyle(color: colors.onErrorContainer),
+              ),
+            ),
+          ],
         ),
       ),
     );

@@ -130,6 +130,33 @@ void main() {
     },
   );
 
+  testWidgets(
+    'password recovery warning appears on register and sign-in only',
+    (tester) async {
+      const warning =
+          'Remember your password. Password recovery is not available '
+          'in this pilot, and unsynced records may be lost if you cannot '
+          'sign in.';
+      await tester.pumpWidget(
+        OutreachApp(session: session, hasAccounts: false),
+      );
+      expect(find.text(warning), findsOneWidget);
+      final signIn = find.text('Already have an account? Sign in');
+      await tester.ensureVisible(signIn);
+      await tester.tap(signIn);
+      await tester.pumpAndSettle();
+      expect(find.text(warning), findsOneWidget);
+      await tester.runAsync(
+        () => session.signIn('Alice', 'password1', register: true),
+      );
+      await tester.pumpWidget(OutreachApp(session: session, hasAccounts: true));
+      session.lock();
+      await tester.pump();
+      expect(find.text('App locked'), findsOneWidget);
+      expect(find.text(warning), findsNothing);
+    },
+  );
+
   testWidgets('first-use registration form validates confirmation', (
     tester,
   ) async {

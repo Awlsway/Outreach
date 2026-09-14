@@ -6,7 +6,7 @@ This guide explains the current Android APK behavior for outreach workers and th
 
 1. Open the app.
 2. If this is first use on the phone, create your account with a username and password.
-3. Remember the password. The app does not have password recovery yet.
+3. Remember the password. The app does not have password recovery in the pilot, and unsynced records may be lost if you cannot sign in.
 4. After registration or sign in, the home screen shows the signed-in username at the bottom.
 
 The app locks after one minute of inactivity. Unlock with the same password. You can also use the lock button at the top of the home screen.

@@ -7,6 +7,7 @@ Account increment: 0.2.1+3. SQLite schema version: 2. Hotspot screens were subse
 - First use opens Create your account. Existing accounts open Sign in after app restart.
 - Registration accepts a trimmed, case-sensitive username (1–64 characters), a password (8–128 characters), and matching confirmation. Passwords are not trimmed.
 - Registration Password and Confirm password fields have independent eye buttons; Sign in has an eye button for Password. All start hidden. Toggling preserves typed text and switches the accessible Show/Hide label. Visibility resets when switching forms or submitting. Password unlock continues to use a hidden field.
+- Create account and sign-in screens warn workers to remember the password because password recovery is not available in the pilot and unsynced records may be lost if they cannot sign in.
 - Successful registration signs the worker in. A second local account can be created from the sign-in page, with a distinct worker identity.
 - Login and password unlock work entirely offline. A successful login creates only an in-memory session; restarting the process requires login again.
 - Signed-in home shows the username, manual lock and logout controls. Hotspot/client screens remain outside this change.
@@ -52,6 +53,6 @@ Phone installation and launch evidence is recorded in 05_build_status.md. Automa
 
 ## Remaining work
 
-Password recovery and password changes are not implemented. There is no destructive reset button. Do not uninstall or clear app data as a recovery method for unsynced records.
+Password recovery and password changes are not implemented. There is no destructive reset button. The register/sign-in warning is informational only and does not create a recovery path. Do not uninstall or clear app data as a recovery method for unsynced records.
 
 The SQLite database is app-private but not encrypted at rest. Full data-storage protection and recovery remain pre-pilot requirements. Debug signing and debug access also mean this build is for development, not live client information. Hotspot screens, encounters, summary UI and desktop sync are separate future work.
