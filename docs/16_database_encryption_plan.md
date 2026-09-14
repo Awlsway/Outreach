@@ -1,6 +1,6 @@
 # Database encryption plan
 
-Status: code implemented, pending phone migration verification, 14 September 2026.
+Status: code implemented; technical phone encryption check passed; user data visibility check pending, 14 September 2026.
 
 This document locks the planned approach for encrypting the Android APK's local SQLite database before any real client pilot. It is based on the current codebase, where all production database access goes through `AppDatabase.open()` and the app stores data in `ansvk_outreach.db` under Android app-private storage.
 
@@ -82,15 +82,16 @@ Completed before installing to the phone:
 1. Focused database tests passed with `sqflite_common_ffi`.
 2. Full Flutter test suite passed.
 3. Debug APK build passed with `sqflite_sqlcipher` and `flutter_secure_storage`.
+4. APK 0.9.0+15 installed over existing phone test data without clearing app data.
+5. Cold launch succeeded with no Flutter/AndroidRuntime crash logs.
+6. Header-only database inspection no longer showed the plain SQLite file header.
 
 Still required on the phone:
 
-1. Install over an existing development APK with test data.
-2. Sign in using the existing worker account.
-3. Confirm existing hotspots/client records still appear.
-4. Add one new hotspot or client record.
-5. Restart the APK and confirm the new data remains.
-6. Pull or inspect the app database if possible and confirm it is no longer readable as plain SQLite. If direct database inspection is blocked by Android permissions, confirm through app behavior and document the limitation.
+1. Sign in using the existing worker account.
+2. Confirm existing hotspots/client records still appear.
+3. Add one new hotspot or client record.
+4. Restart the APK and confirm the new data remains.
 
 ## Risks and limits
 

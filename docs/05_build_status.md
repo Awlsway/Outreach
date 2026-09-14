@@ -8,7 +8,9 @@
 - Added a one-time plaintext development-database migration path. If the existing `ansvk_outreach.db` is a valid unencrypted development database, the app exports it into an encrypted SQLCipher database, verifies integrity, replaces the old file only after verification, and does not silently delete data after a failed migration.
 - Added Android SQLCipher ProGuard keep rule.
 - Validation completed on the development computer: full Flutter test suite passed, and debug APK 0.9.0+15 built successfully.
-- Phone install/migration verification has not been performed yet for this increment. Before real pilot use, install over the current phone test data and confirm existing records survive.
+- Phone install over existing test data succeeded on device `ORCE49UWDQVGRC49`. Cold launch put `org.ansvk.ansvk_outreach/.MainActivity` in the foreground with no Flutter/AndroidRuntime crash logs.
+- Header-only inspection of `databases/ansvk_outreach.db` showed encrypted-looking bytes instead of the plain SQLite `SQLite format 3` header. No table contents or client records were read.
+- Worker sign-in and visual confirmation that existing hotspots/client records survive migration remains the user-facing phone check.
 
 ## Sync status preparation
 
