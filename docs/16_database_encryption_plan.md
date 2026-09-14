@@ -1,6 +1,6 @@
 # Database encryption plan
 
-Status: code implemented; technical phone encryption check passed; user data visibility check pending, 14 September 2026.
+Status: accepted for development-stage phone testing, 14 September 2026.
 
 This document locks the planned approach for encrypting the Android APK's local SQLite database before any real client pilot. It is based on the current codebase, where all production database access goes through `AppDatabase.open()` and the app stores data in `ansvk_outreach.db` under Android app-private storage.
 
@@ -85,8 +85,9 @@ Completed before installing to the phone:
 4. APK 0.9.0+15 installed over existing phone test data without clearing app data.
 5. Cold launch succeeded with no Flutter/AndroidRuntime crash logs.
 6. Header-only database inspection no longer showed the plain SQLite file header.
+7. User signed in after migration and confirmed existing data remained visible.
 
-Still required on the phone:
+Completed on the phone:
 
 1. Sign in using the existing worker account.
 2. Confirm existing hotspots/client records still appear.

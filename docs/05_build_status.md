@@ -10,7 +10,7 @@
 - Validation completed on the development computer: full Flutter test suite passed, and debug APK 0.9.0+15 built successfully.
 - Phone install over existing test data succeeded on device `ORCE49UWDQVGRC49`. Cold launch put `org.ansvk.ansvk_outreach/.MainActivity` in the foreground with no Flutter/AndroidRuntime crash logs.
 - Header-only inspection of `databases/ansvk_outreach.db` showed encrypted-looking bytes instead of the plain SQLite `SQLite format 3` header. No table contents or client records were read.
-- Worker sign-in and visual confirmation that existing hotspots/client records survive migration remains the user-facing phone check.
+- User phone walkthrough passed after migration: sign-in worked, existing data remained visible, a new test record could be added, and data remained after reopening.
 
 ## Sync status preparation
 

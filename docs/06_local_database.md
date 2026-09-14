@@ -1,6 +1,6 @@
 # Local SQLite implementation
 
-Current SQLite schema version: 4. Version 2 added authentication credentials; version 3 adds app/device identity for future dashboard sync; version 4 adds local dashboard connection state. Android production builds now open the database through SQLCipher; phone migration verification remains pending.
+Current SQLite schema version: 4. Version 2 added authentication credentials; version 3 adds app/device identity for future dashboard sync; version 4 adds local dashboard connection state. Android production builds now open the database through SQLCipher, and phone migration verification passed for the development APK.
 
 ## Scope
 
@@ -55,7 +55,7 @@ Future schema changes must add numbered migrations and increment the schema vers
 
 Nine database tests plus authentication migration tests passed. They cover table creation and integrity, app identity creation/persistence, version-1 upgrade to current schema, reopen persistence, ownership, duplicate keys across sites/days/workers, concurrent saves, input constraints, New/Old transitions, immutable dates, stale revisions, deletion/replacement, transactional rollback and daily unique-person totals.
 
-Tests run through sqflite_common_ffi against real SQLite files on the development computer, not a mocked SQL engine. Android SQLCipher integration is checked through the debug APK build and still needs phone install/migration verification.
+Tests run through sqflite_common_ffi against real SQLite files on the development computer, not a mocked SQL engine. Android SQLCipher integration was checked through the debug APK build, encrypted-looking phone database header, and user phone walkthrough after migration.
 
 Implementation references: [sqflite_sqlcipher](https://pub.dev/packages/sqflite_sqlcipher), [flutter_secure_storage](https://pub.dev/documentation/flutter_secure_storage/latest/), [native SQLite test backend](https://pub.dev/packages/sqflite_common_ffi), [SQLite foreign keys](https://www.sqlite.org/foreignkeys.html), [partial indexes](https://www.sqlite.org/partialindex.html).
 
@@ -63,4 +63,4 @@ Implementation references: [sqflite_sqlcipher](https://pub.dev/packages/sqflite_
 
 Registration, password verification/storage, authentication, inactivity locking, screens and GPS acquisition are implemented in later increments. Network sync and retention cleanup remain outside this database-only step. createWorkerProfile is infrastructure provisioning only and does not create a usable login.
 
-Android app-private storage, allowBackup=false and SQLCipher database opening are configured. Do not use this development build for real client information until phone migration verification, release signing and pilot checks are complete. Raw connection access is restricted by convention to infrastructure/tests; repository scoping is not a substitute for OS security or the future authentication layer.
+Android app-private storage, allowBackup=false and SQLCipher database opening are configured. Do not use this development build for real client information until release signing and final pilot checks are complete. Raw connection access is restricted by convention to infrastructure/tests; repository scoping is not a substitute for OS security or the future authentication layer.
