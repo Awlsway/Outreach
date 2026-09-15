@@ -14,7 +14,7 @@ M1 is complete as a planning baseline. SQLite schema version 6, accounts/locking
 | M4 Encounters | Complete for development increment | Create/save form, today's list/detail, delete and edit implemented |
 | M5 Summary | Complete for development increment | Phone-side Daily Summary implemented and tested; future report export remains desktop scope |
 | M6 Sync preparation | Pairing and retention preparation implemented; architecture and API contract drafted | See 12_sync_architecture_decision.md and 13_dashboard_api_contract.md; next APK step is real dashboard pairing request/client code when the dashboard exists |
-| M7 Pilot/release | Draft checklist created | See 17_pre_pilot_readiness.md; release signing and all-phone dummy-data testing remain |
+| M7 Pilot/release | Draft checklist and signing plan created | See 17_pre_pilot_readiness.md and 18_release_signing_plan.md; real keystore creation and all-phone dummy-data testing remain |
 
 ## Open decisions
 
@@ -72,4 +72,4 @@ The entries below preserve the original questions. 04_development_specification.
 
 ## Next work package
 
-Client encounter creation, daily summary, today's list/detail, record delete, record edit, sync-status placeholder, pairing-preparation storage, retention safety status and SQLCipher database-opening code are complete for this increment. Sync architecture is locked in 12_sync_architecture_decision.md, the future dashboard API handover contract is drafted in 13_dashboard_api_contract.md, a current worker guide is available in 14_worker_guide.md, security/recovery decisions are confirmed in 15_security_recovery_plan.md, database encryption status is in 16_database_encryption_plan.md, and pre-pilot readiness is drafted in 17_pre_pilot_readiness.md. The next APK sync step is real pairing request/upload client code after the dashboard project exists. Desktop sync remains a separate future integration.
+Client encounter creation, daily summary, today's list/detail, record delete, record edit, sync-status placeholder, pairing-preparation storage, retention safety status and SQLCipher database-opening code are complete for this increment. Sync architecture is locked in 12_sync_architecture_decision.md, the future dashboard API handover contract is drafted in 13_dashboard_api_contract.md, a current worker guide is available in 14_worker_guide.md, security/recovery decisions are confirmed in 15_security_recovery_plan.md, database encryption status is in 16_database_encryption_plan.md, pre-pilot readiness is drafted in 17_pre_pilot_readiness.md, and release-signing setup is documented in 18_release_signing_plan.md. The next APK sync step is real pairing request/upload client code after the dashboard project exists. Desktop sync remains a separate future integration.

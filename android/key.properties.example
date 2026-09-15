@@ -1,0 +1,6 @@
+# Copy this file to android/key.properties and fill in local values.
+# Do not commit android/key.properties or the keystore file.
+storePassword=CHANGE_ME
+keyPassword=CHANGE_ME
+keyAlias=ansvk-outreach
+storeFile=C:\\secure-location\\ansvk-outreach-release.jks

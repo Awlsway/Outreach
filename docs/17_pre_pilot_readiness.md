@@ -62,7 +62,7 @@ This option is not ready because the Windows dashboard is not built yet.
 
 | Area | Required check | Status |
 | --- | --- | --- |
-| Release build | Create a release-signed APK, not a debug-signed APK | Not done |
+| Release build | Create a release-signed APK, not a debug-signed APK | Signing structure prepared; see 18_release_signing_plan.md |
 | App version | Confirm version shown/recorded for handover | Build version `0.9.2+17`; release artifact not made |
 | Worker phones | Test install/update on every pilot phone model | One development phone tested |
 | Device passcode | Confirm every worker phone has a device screen lock | Policy agreed; field verification needed |
@@ -108,9 +108,10 @@ A future dashboard developer must read these files before building the desktop s
 - [13_dashboard_api_contract.md](13_dashboard_api_contract.md)
 - [15_security_recovery_plan.md](15_security_recovery_plan.md)
 - [16_database_encryption_plan.md](16_database_encryption_plan.md)
+- [18_release_signing_plan.md](18_release_signing_plan.md)
 
 ## Current recommendation
 
-Keep the current APK in development/pilot-preparation status until release signing and the all-phone dummy-data test are complete.
+Keep the current APK in development/pilot-preparation status until release signing and the all-phone dummy-data test are complete. The release-signing setup plan is documented in 18_release_signing_plan.md.
 
 Do not use it for real client information as a full program system until the Windows dashboard can receive data and acknowledge exact operations. If the project chooses a local-only pilot before the dashboard, document that decision separately and train workers on the data-loss limits before deployment.

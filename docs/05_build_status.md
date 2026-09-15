@@ -5,6 +5,9 @@
 - Added `docs/17_pre_pilot_readiness.md` as the current review artifact for deciding whether the APK can move beyond development testing.
 - The checklist separates development testing, possible local-only pilot before dashboard, and full pilot with dashboard sync.
 - It records that release signing, all-phone dummy-data testing, worker training and dashboard sync remain open before full real-client deployment.
+- Added `docs/18_release_signing_plan.md`, `android/key.properties.example` and a Gradle release-signing hook that reads private signing values from ignored local `android/key.properties`.
+- Release builds no longer silently use the debug signing key when private release signing settings are absent.
+- Validation: normal debug build still succeeds with the new Gradle signing hook. A general `gradlew tasks` listing still hits the known Flutter plugin cross-drive path issue in this environment, so it is not used as the project validation command.
 
 ## Retention safety status (0.9.2+17)
 
