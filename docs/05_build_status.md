@@ -5,7 +5,8 @@
 - Added SQLite schema version 5 fields on `dashboard_connection` for a locally saved future pairing code and pairing-prepared timestamp.
 - Updated Sync Status to show address saved, pairing code saved, ready to request pairing, dashboard paired and ready to sync as separate checks.
 - Updated the dashboard setup screen to save a local dashboard API address plus a 4-12 digit pairing code. This prepares a later dashboard pairing request only; it does not contact the dashboard, upload data, acknowledge operations or clean up records.
-- Validation completed on the development computer: full Flutter test suite passed with `--concurrency=1`, and debug APK 0.9.1+16 built successfully. No phone install was performed for this increment.
+- Validation completed on the development computer: full Flutter test suite passed with `--concurrency=1`, and debug APK 0.9.1+16 built successfully.
+- Phone install over existing test data succeeded on device `ORCE49UWDQVGRC49`. User phone walkthrough passed: Dashboard pairing accepted a local dashboard address and pairing code, Sync Status showed address/code prepared, and real sync remained unavailable because the Windows dashboard is not built yet.
 
 ## Database encryption implementation (0.9.0+15)
 
