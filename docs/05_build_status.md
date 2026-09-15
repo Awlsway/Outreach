@@ -6,6 +6,7 @@
 - Added retention safety calculations to Sync Status. The APK now shows the 7-day keep window, old client-record count, old records held because they still have unacknowledged encounter operations, old records that would become eligible after acknowledgement, and cleanup enabled status.
 - Cleanup remains disabled. This increment does not delete records, clear audit payloads, mark operations acknowledged or pretend that the dashboard has received data.
 - Validation completed on the development computer: full Flutter test suite passed with `--concurrency=1`, and debug APK 0.9.2+17 built successfully. No phone install was performed for this increment.
+- Phone install over existing test data succeeded on device `ORCE49UWDQVGRC49`. User phone walkthrough passed: existing data remained visible, Sync Status opened, Retention safety appeared, and cleanup remained disabled.
 
 ## Dashboard pairing preparation (0.9.1+16)
 
