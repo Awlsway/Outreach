@@ -166,6 +166,7 @@ The APK now has a Sync status screen that shows:
 - Pending operation count.
 - Pending operation breakdown and a detail list of operation type/action/revision/time.
 - Sync readiness: address saved, pairing code saved, ready to request pairing, dashboard paired and ready-to-sync state.
+- Retention safety: 7-day keep window, old client-record count, records held because unsynced, records eligible after acknowledgement and cleanup disabled state.
 - Last successful sync, usually Never for now.
 - Desktop connection status: Not configured.
 - A disabled Sync button or an explanatory message.

@@ -1,6 +1,6 @@
 # ANSVK Outreach development specification
 
-Status: Android foundation, SQLite schema v4, offline accounts/lock, hotspot workflow, client encounter creation, phone-side daily summary and sync-status preparation implemented. See 05_build_status.md for validation, 07_accounts_and_lock.md for accounts, 08_hotspots.md for hotspots, 09_client_entry.md for encounters, 10_daily_summary.md for summary behavior, 15_security_recovery_plan.md for pre-pilot security/recovery decisions and 16_database_encryption_plan.md for the proposed database encryption implementation.
+Status: Android foundation, SQLite schema v6, offline accounts/lock, hotspot workflow, client encounter creation, phone-side daily summary, sync-status preparation and retention safety status implemented. See 05_build_status.md for validation, 07_accounts_and_lock.md for accounts, 08_hotspots.md for hotspots, 09_client_entry.md for encounters, 10_daily_summary.md for summary behavior, 15_security_recovery_plan.md for pre-pilot security/recovery decisions and 16_database_encryption_plan.md for the database encryption implementation.
 
 This specification implements 01_plan.md and the acceptance checks in 02_implementation_plan.md. Defaults below are project-manager decisions, not additional user-confirmed requirements. They allow development to proceed and can be revised without changing the confirmed scope.
 

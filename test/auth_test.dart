@@ -176,7 +176,7 @@ void main() {
         );
         var service = AuthService(upgraded, hasher: TestHasher());
         final worker = await service.register('Alice', 'password1');
-        expect(await upgraded.connection.getVersion(), 5);
+        expect(await upgraded.connection.getVersion(), 6);
         expect(
           (await upgraded.connection.query('hotspots')).single['name'],
           'Saved site',
@@ -194,6 +194,9 @@ void main() {
         expect(dashboard['dashboard_url'], isNull);
         expect(dashboard['pairing_code'], isNull);
         expect(dashboard['pairing_prepared_at'], isNull);
+        final state = (await upgraded.connection.query('sync_state')).single;
+        expect(state['retention_checked_at'], isNull);
+        expect(state['retention_cleanup_at'], isNull);
         await upgraded.close();
         upgraded = await AppDatabase.open(
           factory: databaseFactoryFfi,

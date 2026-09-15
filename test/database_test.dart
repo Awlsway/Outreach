@@ -48,7 +48,7 @@ void main() {
         'hotspot_id': hotspot,
         'client_code': ' 001 ',
       });
-      expect(await database.connection.getVersion(), 5);
+      expect(await database.connection.getVersion(), 6);
       expect(
         (await database.connection.rawQuery(
           'PRAGMA foreign_keys',
@@ -107,6 +107,18 @@ void main() {
       expect(status['pending_updates'], 0);
       expect(status['pending_deletes'], 0);
       expect(status['last_successful_sync_at'], isNull);
+      expect(status['retention_keep_days'], 7);
+      expect(status['old_client_records'], 0);
+      expect(status['old_client_records_held_unsynced'], 0);
+      expect(status['old_client_records_eligible_after_ack'], 0);
+      expect(status['retention_cleanup_enabled'], 0);
+      now = DateTime(2026, 9, 17, 10);
+      final retention = await repo.syncStatus();
+      expect(retention['retention_cutoff_day'], '2026-09-11');
+      expect(retention['old_client_records'], 1);
+      expect(retention['old_client_records_held_unsynced'], 1);
+      expect(retention['old_client_records_eligible_after_ack'], 0);
+      expect(retention['retention_cleanup_enabled'], 0);
       expect(status['project_id'], 'ansvk_outreach');
       expect(status['project_name'], 'ANSVK Outreach');
       expect(status['device_id'], identity['device_id']);

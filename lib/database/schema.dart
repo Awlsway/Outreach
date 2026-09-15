@@ -168,4 +168,12 @@ Future<void> migrate(Database db, int from, int to) async {
       'ALTER TABLE dashboard_connection ADD COLUMN pairing_prepared_at TEXT',
     );
   }
+  if (from < 6 && to >= 6) {
+    await db.execute(
+      'ALTER TABLE sync_state ADD COLUMN retention_checked_at TEXT',
+    );
+    await db.execute(
+      'ALTER TABLE sync_state ADD COLUMN retention_cleanup_at TEXT',
+    );
+  }
 }

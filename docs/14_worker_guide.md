@@ -99,9 +99,12 @@ The screen shows:
 - Whether the phone is ready to request pairing later.
 - Whether the phone is paired.
 - Whether sync is ready.
+- Retention safety counts for old client records.
 - App/project/device identity for future support.
 
 **Ready to sync** remains **No** in this version.
+
+The **Retention safety** section shows whether old client records exist on the phone. Cleanup remains disabled because the Windows dashboard cannot acknowledge records yet.
 
 The **Pending changes** screen shows operation type, action, revision and time. It does not show full client payload details.
 

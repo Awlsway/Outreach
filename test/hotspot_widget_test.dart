@@ -37,7 +37,7 @@ void main() {
   Future<void> flush(WidgetTester tester) async {
     await tester.runAsync(() async {
       // Drain serialized SQLite work and its Dart completion callbacks.
-      for (var i = 0; i < 4; i++) {
+      for (var i = 0; i < 8; i++) {
         await db.connection.rawQuery('SELECT 1');
       }
     });
@@ -247,6 +247,17 @@ void main() {
     expect(find.text('Dashboard paired'), findsOneWidget);
     expect(find.text('Ready to sync'), findsOneWidget);
     await tester.scrollUntilVisible(
+      find.text('Retention safety'),
+      200,
+      scrollable: visibleListScrollable(),
+    );
+    expect(find.text('Retention safety'), findsOneWidget);
+    expect(find.text('Keep days on phone'), findsOneWidget);
+    expect(find.text('Old client records'), findsOneWidget);
+    expect(find.text('Held because unsynced'), findsOneWidget);
+    expect(find.text('Eligible after acknowledgement'), findsOneWidget);
+    expect(find.text('Cleanup enabled'), findsOneWidget);
+    await tester.scrollUntilVisible(
       find.text('Pending details'),
       200,
       scrollable: visibleListScrollable(),
@@ -255,6 +266,11 @@ void main() {
     expect(find.text('Worker changes'), findsOneWidget);
     expect(find.text('Hotspot changes'), findsOneWidget);
     expect(find.text('Client record changes'), findsOneWidget);
+    await tester.scrollUntilVisible(
+      find.text('App identity'),
+      200,
+      scrollable: visibleListScrollable(),
+    );
     expect(find.text('ANSVK Outreach'), findsWidgets);
     await tester.scrollUntilVisible(
       find.text('View pending changes'),

@@ -936,6 +936,23 @@ class _HotspotWorkspaceState extends State<HotspotWorkspace> {
                   'Ready to sync': 'No',
                 }),
                 const SizedBox(height: 20),
+                _summarySection(context, 'Retention safety', {
+                  'Keep days on phone': _syncValue('retention_keep_days'),
+                  'Old client records': _syncValue('old_client_records'),
+                  'Held because unsynced': _syncValue(
+                    'old_client_records_held_unsynced',
+                  ),
+                  'Eligible after acknowledgement': _syncValue(
+                    'old_client_records_eligible_after_ack',
+                  ),
+                  'Cleanup enabled': _yesNo(
+                    _syncStatus?['retention_cleanup_enabled'] == 1,
+                  ),
+                  'Retention cutoff date': _text(
+                    _syncStatus?['retention_cutoff_day'],
+                  ),
+                }),
+                const SizedBox(height: 20),
                 _summarySection(context, 'Pending details', {
                   'Worker changes': _syncValue('pending_workers'),
                   'Hotspot changes': _syncValue('pending_hotspots'),

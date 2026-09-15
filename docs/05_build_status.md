@@ -1,5 +1,12 @@
 # Scaffold build status
 
+## Retention safety status (0.9.2+17)
+
+- Added SQLite schema version 6 fields on `sync_state` for future retention-check and retention-cleanup timestamps.
+- Added retention safety calculations to Sync Status. The APK now shows the 7-day keep window, old client-record count, old records held because they still have unacknowledged encounter operations, old records that would become eligible after acknowledgement, and cleanup enabled status.
+- Cleanup remains disabled. This increment does not delete records, clear audit payloads, mark operations acknowledged or pretend that the dashboard has received data.
+- Validation completed on the development computer: full Flutter test suite passed with `--concurrency=1`, and debug APK 0.9.2+17 built successfully. No phone install was performed for this increment.
+
 ## Dashboard pairing preparation (0.9.1+16)
 
 - Added SQLite schema version 5 fields on `dashboard_connection` for a locally saved future pairing code and pairing-prepared timestamp.

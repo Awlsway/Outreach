@@ -20,7 +20,7 @@ The dashboard developer should treat this file as the detailed API contract, and
 
 ## Contract source of truth
 
-This contract is based on the current APK SQLite schema version 5 and repository behavior in app version `0.9.1+16`.
+This contract is based on the current APK SQLite schema version 6 and repository behavior in app version `0.9.2+17`.
 
 The phone stores pending sync data in `audit_operations` and `sync_outbox`.
 
@@ -100,7 +100,7 @@ Example request:
   "worker_id": "65d24c79-807e-45a4-ae3b-719214ed8d3e",
   "username": "worker1",
   "pairing_code": "123456",
-  "app_version": "0.9.1+16",
+  "app_version": "0.9.2+17",
   "requested_at": "2026-09-12T08:35:00Z"
 }
 ```
@@ -167,7 +167,7 @@ Example request:
   "device_id": "8c8df2a3-8f46-4f1f-98e6-a2c7f8cbb801",
   "device_created_at": "2026-09-12T07:00:00Z",
   "worker_id": "65d24c79-807e-45a4-ae3b-719214ed8d3e",
-  "app_version": "0.9.1+16",
+  "app_version": "0.9.2+17",
   "batch_created_at": "2026-09-12T08:40:00Z",
   "operations": [
     {
@@ -464,6 +464,17 @@ App identity fields:
 | `device_id` | Sent in pairing and sync batch headers |
 | `created_at` | Sent as `device_created_at` in pairing and sync batch headers |
 
+Sync state fields:
+
+| Field | Notes |
+| --- | --- |
+| `worker_id` | Worker ID for the local sync state row |
+| `last_successful_sync_at` | Future dashboard acknowledgement timestamp for the worker |
+| `retention_checked_at` | Reserved for the last future retention-check timestamp |
+| `retention_cleanup_at` | Reserved for the last future retention-cleanup timestamp |
+
+The current APK uses sync state to show status only. It does not mark operations acknowledged or clean old records because the dashboard does not exist yet.
+
 Worker payload fields:
 
 | Field | Notes |
@@ -563,6 +574,8 @@ The phone may remove old client records only after dashboard acknowledgement. Th
 
 Hotspot data remains on the phone. Client/encounter data older than the retention window can be cleaned up later only after the phone knows the latest operation was accepted by the dashboard.
 
+The current APK keeps today and the six preceding local calendar dates on the phone. Older client records are counted in Sync Status, but cleanup remains disabled until real dashboard acknowledgement and cleanup implementation exist.
+
 ## Error code guidance
 
 Use machine-readable error codes so the APK can show clear status and decide whether retry is useful.
@@ -606,4 +619,4 @@ These screens are dashboard scope, not APK scope.
 
 ## Current implementation status
 
-The APK does not yet implement real network sync, a real pairing request or retention cleanup. The APK already stores local operations in an audit/outbox model, has an app identity row with project/device metadata, and has a dashboard connection row reserved for future pairing/address state. The APK can save a dashboard API address and pairing code locally, but this only prepares a later pairing request; it is not pairing and does not permit upload. The APK has a Sync status screen showing pending operation count and "Desktop connection not configured" until the dashboard API exists.
+The APK does not yet implement real network sync, a real pairing request or retention cleanup. The APK already stores local operations in an audit/outbox model, has an app identity row with project/device metadata, and has a dashboard connection row reserved for future pairing/address state. The APK can save a dashboard API address and pairing code locally, but this only prepares a later pairing request; it is not pairing and does not permit upload. The APK has a Sync status screen showing pending operation count, pairing preparation and retention safety counts until the dashboard API exists.

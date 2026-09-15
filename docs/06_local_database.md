@@ -1,6 +1,6 @@
 # Local SQLite implementation
 
-Current SQLite schema version: 5. Version 2 added authentication credentials; version 3 adds app/device identity for future dashboard sync; version 4 adds local dashboard connection state; version 5 adds pairing-preparation fields. Android production builds now open the database through SQLCipher, and phone migration verification passed for the development APK.
+Current SQLite schema version: 6. Version 2 added authentication credentials; version 3 adds app/device identity for future dashboard sync; version 4 adds local dashboard connection state; version 5 adds pairing-preparation fields; version 6 adds retention check/cleanup timestamp fields for future cleanup work. Android production builds now open the database through SQLCipher, and phone migration verification passed for the development APK.
 
 ## Scope
 
@@ -18,7 +18,7 @@ The SQLite file is on the phone, not embedded with user records inside the APK. 
 | encounters | Worker/hotspot, client code, visit date, all client/testing/supply/referral fields, timestamps, revision and deletion marker |
 | audit_operations | Ordered create/edit/delete history with actor, operation ID, entity, revision and JSON snapshots |
 | sync_outbox | Persistent pending-operation tracking; acknowledgement fields reserved for future sync |
-| sync_state | Per-worker last-successful-sync field, initially empty |
+| sync_state | Per-worker last-successful-sync and future retention timestamp fields, initially empty |
 | credentials | Password verifier material linked to a worker; added in schema version 2 |
 | app_identity | One local project/device identity row for future dashboard sync; added in schema version 3 |
 | dashboard_connection | One local dashboard pairing/address state row; added in schema version 4 and extended in schema version 5 |
@@ -34,7 +34,7 @@ There is no permanent client directory. SQLite's internal sqlite_sequence table 
 - lib/main.dart: awaits database creation before showing the existing app shell.
 - test/database_test.dart: native SQLite tests with isolated temporary database files.
 
-Future schema changes must add numbered migrations and increment the schema version. Unsupported downgrades fail rather than deleting the database. Existing historical migrations now cover version 1 → 2 credentials, version 2 → 3 app identity, version 3 → 4 dashboard connection state and version 4 → 5 pairing-preparation fields.
+Future schema changes must add numbered migrations and increment the schema version. Unsupported downgrades fail rather than deleting the database. Existing historical migrations now cover version 1 → 2 credentials, version 2 → 3 app identity, version 3 → 4 dashboard connection state, version 4 → 5 pairing-preparation fields and version 5 → 6 retention timestamp fields.
 
 ## Implemented guarantees
 
@@ -48,6 +48,7 @@ Future schema changes must add numbered migrations and increment the schema vers
 - A mutation, audit entry and pending operation commit together or all roll back.
 - Daily database queries count distinct client codes for unique people and filter by worker, local day and active state.
 - No acknowledgement or seven-day cleanup is implemented, so older unsynchronized data cannot be removed automatically.
+- Sync Status can show retention safety counts, but cleanup is disabled until exact dashboard acknowledgement exists.
 - The app identity row is created automatically. It is local configuration, not a worker-entered record and not an audited worker operation.
 - The dashboard connection row is created automatically as Not configured. It is local configuration, not a sync acknowledgement and not an audited worker operation.
 

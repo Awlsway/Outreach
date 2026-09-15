@@ -38,6 +38,11 @@ class OutreachRepository {
   static String _day(DateTime time) =>
       '${time.year.toString().padLeft(4, '0')}-${time.month.toString().padLeft(2, '0')}-${time.day.toString().padLeft(2, '0')}';
 
+  static const _retentionKeepDays = 7;
+
+  String _retentionCutoffDay() =>
+      _day(_clock().subtract(const Duration(days: _retentionKeepDays - 1)));
+
   /// Profile-only infrastructure provisioning (also used by database tests).
   /// UI registration must use AuthService's atomic credential/profile creation.
   /// This method does not create a login or sign in the worker.
@@ -359,6 +364,29 @@ class OutreachRepository {
       'dashboard_connection',
       limit: 1,
     )).single;
+    final retention = (await _db.rawQuery(
+      '''
+        SELECT
+          COUNT(*) AS old_client_records,
+          COALESCE(SUM(CASE WHEN EXISTS (
+            SELECT 1 FROM audit_operations a
+            JOIN sync_outbox o USING(operation_id)
+            WHERE a.entity_type = 'encounter'
+              AND a.entity_id = e.encounter_id
+              AND o.acknowledged_at IS NULL
+          ) THEN 1 ELSE 0 END),0) AS held_unsynced,
+          COALESCE(SUM(CASE WHEN NOT EXISTS (
+            SELECT 1 FROM audit_operations a
+            JOIN sync_outbox o USING(operation_id)
+            WHERE a.entity_type = 'encounter'
+              AND a.entity_id = e.encounter_id
+              AND o.acknowledged_at IS NULL
+          ) THEN 1 ELSE 0 END),0) AS eligible_after_ack
+        FROM encounters e
+        WHERE e.owner_id = ? AND e.visit_date < ?
+        ''',
+      [owner, _retentionCutoffDay()],
+    )).single;
     return {
       'pending_operations': pending['total'] ?? 0,
       'pending_workers': pending['workers'] ?? 0,
@@ -368,6 +396,15 @@ class OutreachRepository {
       'pending_updates': pending['updates'] ?? 0,
       'pending_deletes': pending['deletes'] ?? 0,
       'last_successful_sync_at': state['last_successful_sync_at'],
+      'retention_checked_at': state['retention_checked_at'],
+      'retention_cleanup_at': state['retention_cleanup_at'],
+      'retention_keep_days': _retentionKeepDays,
+      'retention_cutoff_day': _retentionCutoffDay(),
+      'old_client_records': retention['old_client_records'] ?? 0,
+      'old_client_records_held_unsynced': retention['held_unsynced'] ?? 0,
+      'old_client_records_eligible_after_ack':
+          retention['eligible_after_ack'] ?? 0,
+      'retention_cleanup_enabled': 0,
       'project_id': identity['project_id'],
       'project_name': identity['project_name'],
       'device_id': identity['device_id'],
