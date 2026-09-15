@@ -62,9 +62,9 @@ This option is not ready because the Windows dashboard is not built yet.
 
 | Area | Required check | Status |
 | --- | --- | --- |
-| Release build | Create a release-signed APK, not a debug-signed APK | Release APK `0.9.2+17` built; one-phone release install/update test still needed |
+| Release build | Create a release-signed APK, not a debug-signed APK | Release APK `0.9.2+17` built and manually installed on one phone |
 | App version | Confirm version shown/recorded for handover | Release artifact `0.9.2+17` recorded in 18_release_signing_plan.md |
-| Worker phones | Test install/update on every pilot phone model | One development phone tested |
+| Worker phones | Test install/update on every pilot phone model | One release APK phone test passed; all worker phones still needed |
 | Device passcode | Confirm every worker phone has a device screen lock | Policy agreed; field verification needed |
 | Worker accounts | Confirm each worker creates their own account on their own phone | Policy agreed; field verification needed |
 | Password handling | Confirm workers understand no password recovery | Policy agreed; training needed |
