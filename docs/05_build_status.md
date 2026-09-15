@@ -1,5 +1,11 @@
 # Scaffold build status
 
+## Pre-pilot readiness checklist
+
+- Added `docs/17_pre_pilot_readiness.md` as the current review artifact for deciding whether the APK can move beyond development testing.
+- The checklist separates development testing, possible local-only pilot before dashboard, and full pilot with dashboard sync.
+- It records that release signing, all-phone dummy-data testing, worker training and dashboard sync remain open before full real-client deployment.
+
 ## Retention safety status (0.9.2+17)
 
 - Added SQLite schema version 6 fields on `sync_state` for future retention-check and retention-cleanup timestamps.
