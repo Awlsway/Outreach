@@ -89,4 +89,13 @@ Confirm these items:
 
 ## Current status
 
-Release signing structure is prepared, but the real keystore has not been created in this repository and should not be committed. A release APK has not yet been produced from the real signing key.
+Release signing structure is prepared. The real keystore was created outside the repository at `D:\private\signing\ansvk-outreach-release.jks`, and the local `android/key.properties` file points to it. Both private files must remain outside GitHub.
+
+Release APK built successfully on 15 September 2026:
+
+- Version: `0.9.2+17`
+- Output: `build\app\outputs\flutter-apk\app-release.apk`
+- Size: 65,719,214 bytes
+- SHA-256: `0F1DDB75304B0B2467C0DE1FC2EDF057DC1F0420C3F5B2D18B853D23176E76AB`
+
+The release APK still needs one-phone release install/update testing with dummy data before worker handover.

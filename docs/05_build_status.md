@@ -8,6 +8,7 @@
 - Added `docs/18_release_signing_plan.md`, `android/key.properties.example` and a Gradle release-signing hook that reads private signing values from ignored local `android/key.properties`.
 - Release builds no longer silently use the debug signing key when private release signing settings are absent.
 - Validation: normal debug build still succeeds with the new Gradle signing hook. A general `gradlew tasks` listing still hits the known Flutter plugin cross-drive path issue in this environment, so it is not used as the project validation command.
+- Release APK 0.9.2+17 built successfully from the private signing key on 15 September 2026. Output: `build\app\outputs\flutter-apk\app-release.apk`; SHA-256 `0F1DDB75304B0B2467C0DE1FC2EDF057DC1F0420C3F5B2D18B853D23176E76AB`. One-phone release install/update testing remains before worker handover.
 
 ## Retention safety status (0.9.2+17)
 
