@@ -1,0 +1,11 @@
+{
+  "ok": true,
+  "service": "ksc-outreach-ingestion",
+  "api_version": 1,
+  "protocol": "ansvk-outreach-sync",
+  "protocol_version": 1,
+  "supported_schema_versions": [6],
+  "dashboard_id": "dddddddd-dddd-4ddd-8ddd-dddddddddddd",
+  "dashboard_name": "Synthetic Office Dashboard",
+  "server_time": "2026-09-15T08:00:00Z"
+}

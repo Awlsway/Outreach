@@ -1,0 +1,41 @@
+{
+  "fixture_version": 1,
+  "cases": [
+    {
+      "id": "untrusted-dashboard-certificate",
+      "layer": "apk_transport",
+      "expected_error_code": "untrusted_dashboard_certificate",
+      "expected_behavior": "Do not send pairing or sync body."
+    },
+    {
+      "id": "dashboard-certificate-changed",
+      "layer": "apk_transport",
+      "expected_error_code": "dashboard_certificate_changed",
+      "expected_behavior": "Block sync and instruct worker to ask the data assistant."
+    },
+    {
+      "id": "certificate-rotation-required",
+      "layer": "apk_transport",
+      "expected_error_code": "certificate_rotation_required",
+      "expected_behavior": "Require approved rotation workflow; never provide continue-anyway."
+    },
+    {
+      "id": "response-lost-after-commit",
+      "layer": "end_to_end",
+      "request_fixture": "sync-create.request.json",
+      "first_response": "discard",
+      "retry_response_fixture": "sync-duplicate.response.json",
+      "expected_behavior": "APK acknowledges exact operation IDs and revisions after duplicate response; LAN has one copy of each operation."
+    },
+    {
+      "id": "stop-during-retry",
+      "layer": "apk_transport",
+      "expected_behavior": "Stop further requests and retain every operation not explicitly accepted."
+    },
+    {
+      "id": "restore-older-backup",
+      "layer": "end_to_end",
+      "expected_behavior": "After verified restore, missing phone operations can be resent without duplicate surviving operations or silent revision overwrite."
+    }
+  ]
+}

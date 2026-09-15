@@ -1,0 +1,29 @@
+{
+  "ok": true,
+  "batch_id": "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb2",
+  "request_id": "01J7SYNCREVISIONS0000000000",
+  "dashboard_received_at": "2026-09-15T08:10:01Z",
+  "accepted": [
+    {
+      "operation_id": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa4",
+      "entity_type": "encounter",
+      "entity_id": "44444444-4444-4444-8444-444444444444",
+      "revision": 2,
+      "sequence": 4,
+      "accepted_at": "2026-09-15T08:10:01Z",
+      "duplicate": false
+    },
+    {
+      "operation_id": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa5",
+      "entity_type": "encounter",
+      "entity_id": "44444444-4444-4444-8444-444444444444",
+      "revision": 3,
+      "sequence": 5,
+      "accepted_at": "2026-09-15T08:10:01Z",
+      "duplicate": false
+    }
+  ],
+  "rejected": [],
+  "warnings": [],
+  "retry_after_seconds": null
+}

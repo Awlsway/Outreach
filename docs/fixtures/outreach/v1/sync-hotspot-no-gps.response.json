@@ -1,0 +1,20 @@
+{
+  "ok": true,
+  "batch_id": "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb4",
+  "request_id": "01J7SYNCNOGPS00000000000000",
+  "dashboard_received_at": "2026-09-15T08:25:01Z",
+  "accepted": [
+    {
+      "operation_id": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa9",
+      "entity_type": "hotspot",
+      "entity_id": "33333333-3333-4333-8333-333333333338",
+      "revision": 1,
+      "sequence": 6,
+      "accepted_at": "2026-09-15T08:25:01Z",
+      "duplicate": false
+    }
+  ],
+  "rejected": [],
+  "warnings": [],
+  "retry_after_seconds": null
+}

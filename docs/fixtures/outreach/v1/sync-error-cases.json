@@ -1,0 +1,98 @@
+{
+  "fixture_version": 1,
+  "cases": [
+    {
+      "id": "duplicate-conflict",
+      "http_status": 200,
+      "operation_id": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa3",
+      "expected_error_code": "duplicate_conflict",
+      "retryable": false,
+      "construction": "Reuse the accepted operation_id from sync-create.request.json but change dist_condom from 1 to 2."
+    },
+    {
+      "id": "missing-prior-revision",
+      "http_status": 200,
+      "operation_id": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa7",
+      "expected_error_code": "missing_prior_revision",
+      "retryable": true,
+      "construction": "After encounter revision 1, submit an update with top-level and payload.after revision 3 while revision 2 is absent."
+    },
+    {
+      "id": "worker-identity-conflict",
+      "http_status": 200,
+      "operation_id": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa8",
+      "expected_error_code": "worker_identity_conflict",
+      "retryable": false,
+      "construction": "Submit the paired worker_id with username synthetic.changed instead of synthetic.worker."
+    },
+    {
+      "id": "unsupported-api-version",
+      "http_status": 422,
+      "expected_error_code": "unsupported_api_version",
+      "retryable": false,
+      "construction": "Copy sync-create.request.json and set api_version to 2."
+    },
+    {
+      "id": "unsupported-schema-version",
+      "http_status": 422,
+      "expected_error_code": "unsupported_schema_version",
+      "retryable": false,
+      "construction": "Copy sync-create.request.json and set schema_version to 7."
+    },
+    {
+      "id": "unsupported-protocol-version",
+      "http_status": 422,
+      "expected_error_code": "unsupported_protocol_version",
+      "retryable": false,
+      "construction": "Copy sync-create.request.json and set protocol_version to 2."
+    },
+    {
+      "id": "empty-batch",
+      "http_status": 400,
+      "expected_error_code": "invalid_payload",
+      "retryable": false,
+      "construction": "Copy sync-create.request.json and replace operations with an empty array."
+    },
+    {
+      "id": "operation-count-limit",
+      "http_status": 413,
+      "expected_error_code": "batch_too_large",
+      "retryable": false,
+      "construction": "Generate 101 syntactically valid operations with unique operation_id, entity_id, and ascending sequence."
+    },
+    {
+      "id": "body-size-limit",
+      "http_status": 413,
+      "expected_error_code": "batch_too_large",
+      "retryable": false,
+      "construction": "Generate a valid JSON request whose encoded body exceeds 1048576 bytes."
+    },
+    {
+      "id": "clock-drift-warning",
+      "http_status": 200,
+      "expected_warning_code": "clock_drift",
+      "construction": "With server_time 2026-09-15T08:20:00Z, set batch_created_at to 2026-09-15T08:00:00Z; preserve visit_date."
+    },
+    {
+      "id": "revoked-device",
+      "http_status": 403,
+      "expected_error_code": "device_revoked",
+      "retryable": false,
+      "construction": "Mark the fixture device revoked before sending sync-create.request.json."
+    },
+    {
+      "id": "retired-device",
+      "http_status": 403,
+      "expected_error_code": "device_retired",
+      "retryable": false,
+      "construction": "Mark the fixture device retired before sending sync-create.request.json."
+    },
+    {
+      "id": "temporary-storage-error",
+      "http_status": 500,
+      "expected_error_code": "temporary_storage_error",
+      "retryable": true,
+      "construction": "Inject a storage failure before transaction commit and verify no acknowledgement or derived-state change."
+    }
+  ]
+}

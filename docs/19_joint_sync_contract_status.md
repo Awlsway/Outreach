@@ -20,6 +20,12 @@ The LAN-side security and operations draft is maintained at:
 D:\LAN\docs\Outreach_LAN_Security_Operations_Design.md
 ```
 
+The accepted byte-identical v1 synthetic fixture bundle is stored in this repository at [fixtures/outreach/v1](fixtures/outreach/v1). It was copied from:
+
+```text
+D:\LAN\docs\fixtures\outreach\v1
+```
+
 Future dashboard developers should read these alongside the APK data and workflow documents listed in [13_dashboard_api_contract.md](13_dashboard_api_contract.md).
 
 ## Locked communication model

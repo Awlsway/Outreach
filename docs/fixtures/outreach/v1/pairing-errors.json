@@ -1,0 +1,77 @@
+{
+  "fixture_version": 1,
+  "cases": [
+    {
+      "id": "invalid-pairing-code",
+      "http_status": 400,
+      "response": {
+        "ok": false,
+        "request_id": "01J7PAIRINGINVALID000000000",
+        "error_code": "invalid_pairing_code",
+        "message": "Pairing code was not accepted.",
+        "retryable": false,
+        "details": []
+      }
+    },
+    {
+      "id": "expired-pairing-code",
+      "http_status": 410,
+      "response": {
+        "ok": false,
+        "request_id": "01J7PAIRINGEXPIRED000000000",
+        "error_code": "expired_pairing_code",
+        "message": "Pairing code has expired. Ask for a new code.",
+        "retryable": false,
+        "details": []
+      }
+    },
+    {
+      "id": "pairing-attempts-exhausted",
+      "http_status": 429,
+      "response": {
+        "ok": false,
+        "request_id": "01J7PAIRINGEXHAUST000000000",
+        "error_code": "pairing_attempts_exhausted",
+        "message": "Pairing code is blocked. Ask for a new code.",
+        "retryable": false,
+        "details": []
+      }
+    },
+    {
+      "id": "pairing-code-used",
+      "http_status": 409,
+      "response": {
+        "ok": false,
+        "request_id": "01J7PAIRINGUSED000000000000",
+        "error_code": "pairing_code_used",
+        "message": "Pairing code has already been used.",
+        "retryable": false,
+        "details": []
+      }
+    },
+    {
+      "id": "pairing-code-cancelled",
+      "http_status": 409,
+      "response": {
+        "ok": false,
+        "request_id": "01J7PAIRINGCANCEL0000000000",
+        "error_code": "pairing_code_cancelled",
+        "message": "Pairing code was cancelled. Ask for a new code.",
+        "retryable": false,
+        "details": []
+      }
+    },
+    {
+      "id": "worker-has-active-device",
+      "http_status": 409,
+      "response": {
+        "ok": false,
+        "request_id": "01J7PAIRINGDEVICE0000000000",
+        "error_code": "worker_has_active_device",
+        "message": "This worker already has an active phone. Ask staff to replace it.",
+        "retryable": false,
+        "details": []
+      }
+    }
+  ]
+}
