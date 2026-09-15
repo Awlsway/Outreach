@@ -20,7 +20,7 @@ The dashboard developer should treat this file as the detailed API contract, and
 
 ## Contract source of truth
 
-This contract is based on the current APK SQLite schema version 3 and repository behavior in app version `0.8.1+13`.
+This contract is based on the current APK SQLite schema version 5 and repository behavior in app version `0.9.1+16`.
 
 The phone stores pending sync data in `audit_operations` and `sync_outbox`.
 
@@ -100,7 +100,7 @@ Example request:
   "worker_id": "65d24c79-807e-45a4-ae3b-719214ed8d3e",
   "username": "worker1",
   "pairing_code": "123456",
-  "app_version": "0.8.1+13",
+  "app_version": "0.9.1+16",
   "requested_at": "2026-09-12T08:35:00Z"
 }
 ```
@@ -167,7 +167,7 @@ Example request:
   "device_id": "8c8df2a3-8f46-4f1f-98e6-a2c7f8cbb801",
   "device_created_at": "2026-09-12T07:00:00Z",
   "worker_id": "65d24c79-807e-45a4-ae3b-719214ed8d3e",
-  "app_version": "0.8.1+13",
+  "app_version": "0.9.1+16",
   "batch_created_at": "2026-09-12T08:40:00Z",
   "operations": [
     {
@@ -606,4 +606,4 @@ These screens are dashboard scope, not APK scope.
 
 ## Current implementation status
 
-The APK does not yet implement real network sync, pairing screens or retention cleanup. The APK already stores local operations in an audit/outbox model, has an app identity row with project/device metadata, and has a dashboard connection row reserved for future pairing/address state. The APK can save a dashboard API address locally, but this is not pairing and does not permit upload. The APK has a Sync status screen showing pending operation count and "Desktop connection not configured" until the dashboard API exists.
+The APK does not yet implement real network sync, a real pairing request or retention cleanup. The APK already stores local operations in an audit/outbox model, has an app identity row with project/device metadata, and has a dashboard connection row reserved for future pairing/address state. The APK can save a dashboard API address and pairing code locally, but this only prepares a later pairing request; it is not pairing and does not permit upload. The APK has a Sync status screen showing pending operation count and "Desktop connection not configured" until the dashboard API exists.

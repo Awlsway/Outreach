@@ -95,6 +95,8 @@ The screen shows:
 - Pending changes count.
 - Pending change breakdown.
 - Whether a dashboard address is saved.
+- Whether a pairing code is saved.
+- Whether the phone is ready to request pairing later.
 - Whether the phone is paired.
 - Whether sync is ready.
 - App/project/device identity for future support.
@@ -103,11 +105,11 @@ The screen shows:
 
 The **Pending changes** screen shows operation type, action, revision and time. It does not show full client payload details.
 
-The **Dashboard address** screen can save or clear a future local dashboard API address, such as:
+The **Dashboard pairing** screen can save or clear a future local dashboard API address and pairing code. The address may look like:
 
 `http://192.168.1.20:8080/api/v1`
 
-Saving an address does not pair the phone, test the connection, upload data, acknowledge data or delete records.
+Saving pairing information does not pair the phone, test the connection, upload data, acknowledge data or delete records.
 
 ## Important limitations
 
@@ -115,5 +117,5 @@ Saving an address does not pair the phone, test the connection, upload data, ack
 - Real Windows dashboard sync is not implemented.
 - The app will not remove old client records until real dashboard acknowledgement exists.
 - Password recovery is not implemented.
-- Database encryption/recovery remains pre-pilot work.
+- Database encryption is enabled in Android builds, but recovery remains suspended for the first pilot.
 - Uninstalling the app or clearing app data can remove unsynced local records.

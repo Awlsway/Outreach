@@ -48,7 +48,7 @@ void main() {
         'hotspot_id': hotspot,
         'client_code': ' 001 ',
       });
-      expect(await database.connection.getVersion(), 4);
+      expect(await database.connection.getVersion(), 5);
       expect(
         (await database.connection.rawQuery(
           'PRAGMA foreign_keys',
@@ -113,18 +113,27 @@ void main() {
       expect(status['dashboard_status'], 'Not configured');
       expect(status['dashboard_url'], isNull);
       expect(status['paired_at'], isNull);
-      await repo.saveDashboardAddress(' http://192.168.1.20:8080/api/v1 ');
+      expect(status['pairing_code_saved'], 0);
+      expect(status['pairing_prepared_at'], isNull);
+      await repo.saveDashboardPairing(
+        ' http://192.168.1.20:8080/api/v1 ',
+        ' 123456 ',
+      );
       final configured = await repo.syncStatus();
       expect(configured['dashboard_status'], 'Not configured');
       expect(configured['dashboard_url'], 'http://192.168.1.20:8080/api/v1');
       expect(configured['dashboard_id'], isNull);
       expect(configured['paired_at'], isNull);
+      expect(configured['pairing_code_saved'], 1);
+      expect(configured['pairing_prepared_at'], isNotNull);
       await repo.clearDashboardAddress();
       final cleared = await repo.syncStatus();
       expect(cleared['dashboard_status'], 'Not configured');
       expect(cleared['dashboard_url'], isNull);
       expect(cleared['dashboard_id'], isNull);
       expect(cleared['paired_at'], isNull);
+      expect(cleared['pairing_code_saved'], 0);
+      expect(cleared['pairing_prepared_at'], isNull);
       expect(
         await database.connection.rawQuery('PRAGMA foreign_key_check'),
         isEmpty,

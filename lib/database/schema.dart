@@ -160,4 +160,12 @@ Future<void> migrate(Database db, int from, int to) async {
       'updated_at': now,
     }, conflictAlgorithm: ConflictAlgorithm.ignore);
   }
+  if (from < 5 && to >= 5) {
+    await db.execute(
+      'ALTER TABLE dashboard_connection ADD COLUMN pairing_code TEXT',
+    );
+    await db.execute(
+      'ALTER TABLE dashboard_connection ADD COLUMN pairing_prepared_at TEXT',
+    );
+  }
 }

@@ -242,6 +242,8 @@ void main() {
     );
     expect(find.text('Sync readiness'), findsOneWidget);
     expect(find.text('Dashboard address saved'), findsOneWidget);
+    expect(find.text('Pairing code saved'), findsOneWidget);
+    expect(find.text('Ready to request pairing'), findsOneWidget);
     expect(find.text('Dashboard paired'), findsOneWidget);
     expect(find.text('Ready to sync'), findsOneWidget);
     await tester.scrollUntilVisible(
@@ -268,11 +270,11 @@ void main() {
     await tap(tester, find.byTooltip('Back'));
     expect(find.text('Sync status'), findsOneWidget);
     await tester.scrollUntilVisible(
-      find.text('Set dashboard address'),
+      find.text('Set pairing information'),
       200,
       scrollable: visibleListScrollable(),
     );
-    expect(find.text('Set dashboard address'), findsOneWidget);
+    expect(find.text('Set pairing information'), findsOneWidget);
     await tester.scrollUntilVisible(
       find.text('Sync unavailable until dashboard setup'),
       200,
@@ -283,11 +285,15 @@ void main() {
       tester,
       find.byKey(const ValueKey('configure-dashboard-address')),
     );
-    expect(find.text('Dashboard address'), findsWidgets);
-    expect(find.text('Save address only'), findsOneWidget);
+    expect(find.text('Dashboard pairing'), findsOneWidget);
+    expect(find.text('Save pairing info only'), findsOneWidget);
     await tester.enterText(
       find.byKey(const ValueKey('dashboard-address')),
       'http://192.168.1.20:8080/api/v1',
+    );
+    await tester.enterText(
+      find.byKey(const ValueKey('dashboard-pairing-code')),
+      '123456',
     );
     await tap(tester, find.byKey(const ValueKey('save-dashboard-address')));
     await flush(tester);
@@ -307,7 +313,13 @@ void main() {
     );
     expect(find.text('Dashboard address saved'), findsOneWidget);
     await tester.scrollUntilVisible(
-      find.text('Set dashboard address'),
+      find.text('Ready to request pairing'),
+      200,
+      scrollable: visibleListScrollable(),
+    );
+    expect(find.text('Ready to request pairing'), findsOneWidget);
+    await tester.scrollUntilVisible(
+      find.text('Set pairing information'),
       200,
       scrollable: visibleListScrollable(),
     );
@@ -315,7 +327,7 @@ void main() {
       tester,
       find.byKey(const ValueKey('configure-dashboard-address')),
     );
-    expect(find.text('Clear saved address'), findsOneWidget);
+    expect(find.text('Clear saved pairing'), findsOneWidget);
     await tap(tester, find.byKey(const ValueKey('clear-dashboard-address')));
     expect(find.text('Sync status'), findsOneWidget);
     expect(find.text('http://192.168.1.20:8080/api/v1'), findsNothing);

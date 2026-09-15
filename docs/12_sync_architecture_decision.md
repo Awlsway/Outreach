@@ -92,7 +92,7 @@ Each sync batch should include:
 - App version.
 - Operation list in audit sequence order.
 
-The APK now stores the future project/device metadata locally in schema version 3:
+The APK stores future project/device metadata locally in schema version 3:
 
 - `project_id`: `ansvk_outreach`
 - `project_name`: `ANSVK Outreach`
@@ -165,12 +165,12 @@ The APK now has a Sync status screen that shows:
 
 - Pending operation count.
 - Pending operation breakdown and a detail list of operation type/action/revision/time.
-- Sync readiness: address saved, dashboard paired and ready-to-sync state.
+- Sync readiness: address saved, pairing code saved, ready to request pairing, dashboard paired and ready-to-sync state.
 - Last successful sync, usually Never for now.
 - Desktop connection status: Not configured.
 - A disabled Sync button or an explanatory message.
 
-The APK also has a local dashboard connection row in SQLite. It starts as Not configured and is reserved for future dashboard address/pairing information. The APK can save a dashboard address locally, but saving the address is not pairing and does not allow upload yet.
+The APK also has a local dashboard connection row in SQLite. It starts as Not configured and is reserved for future dashboard address/pairing information. The APK can save a dashboard address and pairing code locally, but this only prepares a later pairing request. It is not pairing and does not allow upload yet.
 
 This prepares the user workflow without pretending that dashboard sync is already available.
 

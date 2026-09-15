@@ -41,6 +41,7 @@ class _HotspotWorkspaceState extends State<HotspotWorkspace> {
   );
   final _search = TextEditingController();
   final _dashboardUrl = TextEditingController();
+  final _pairingCode = TextEditingController();
   _Page _page = _Page.home;
   List<data.Row> _rows = [];
   data.Row? _selected;
@@ -63,6 +64,7 @@ class _HotspotWorkspaceState extends State<HotspotWorkspace> {
   String? _syncError;
   String? _pendingChangesError;
   String? _dashboardAddressError;
+  String? _dashboardPairingError;
   int _query = 0;
 
   @override
@@ -70,6 +72,7 @@ class _HotspotWorkspaceState extends State<HotspotWorkspace> {
     _query++;
     _search.dispose();
     _dashboardUrl.dispose();
+    _pairingCode.dispose();
     super.dispose();
   }
 
@@ -193,9 +196,11 @@ class _HotspotWorkspaceState extends State<HotspotWorkspace> {
   void _openDashboardAddress() {
     widget.session.activity();
     _dashboardUrl.text = (_syncStatus?['dashboard_url'] as String?) ?? '';
+    _pairingCode.clear();
     setState(() {
       _page = _Page.dashboardAddress;
       _dashboardAddressError = null;
+      _dashboardPairingError = null;
     });
   }
 
@@ -222,23 +227,34 @@ class _HotspotWorkspaceState extends State<HotspotWorkspace> {
     }
   }
 
-  Future<void> _saveDashboardAddress() async {
+  Future<void> _saveDashboardPairing() async {
     if (_savingDashboardAddress) return;
     widget.session.activity();
     final value = _dashboardUrl.text.trim();
+    final code = _pairingCode.text.trim();
     if (!value.startsWith('http://')) {
       setState(() {
         _dashboardAddressError =
             'Enter the local dashboard address starting with http://';
+        _dashboardPairingError = null;
+      });
+      return;
+    }
+    if (!RegExp(r'^\d{4,12}$').hasMatch(code)) {
+      setState(() {
+        _dashboardAddressError = null;
+        _dashboardPairingError =
+            'Enter the 4-12 digit pairing code from the dashboard.';
       });
       return;
     }
     setState(() {
       _savingDashboardAddress = true;
       _dashboardAddressError = null;
+      _dashboardPairingError = null;
     });
     try {
-      await _repository.saveDashboardAddress(value);
+      await _repository.saveDashboardPairing(value, code);
       if (!mounted) return;
       _savingDashboardAddress = false;
       _openSyncStatus();
@@ -246,7 +262,7 @@ class _HotspotWorkspaceState extends State<HotspotWorkspace> {
       if (!mounted) return;
       setState(() {
         _savingDashboardAddress = false;
-        _dashboardAddressError = 'Could not save dashboard address.';
+        _dashboardAddressError = 'Could not save pairing information.';
       });
     }
   }
@@ -257,18 +273,20 @@ class _HotspotWorkspaceState extends State<HotspotWorkspace> {
     setState(() {
       _savingDashboardAddress = true;
       _dashboardAddressError = null;
+      _dashboardPairingError = null;
     });
     try {
       await _repository.clearDashboardAddress();
       if (!mounted) return;
       _dashboardUrl.clear();
+      _pairingCode.clear();
       _savingDashboardAddress = false;
       _openSyncStatus();
     } catch (_) {
       if (!mounted) return;
       setState(() {
         _savingDashboardAddress = false;
-        _dashboardAddressError = 'Could not clear dashboard address.';
+        _dashboardAddressError = 'Could not clear dashboard pairing.';
       });
     }
   }
@@ -893,6 +911,9 @@ class _HotspotWorkspaceState extends State<HotspotWorkspace> {
                   'Dashboard': _text(_syncStatus?['dashboard_name']),
                   'Address': _text(_syncStatus?['dashboard_url']),
                   'Paired at': _text(_syncStatus?['paired_at']),
+                  'Pairing prepared at': _text(
+                    _syncStatus?['pairing_prepared_at'],
+                  ),
                   'Last successful sync': _text(
                     _syncStatus?['last_successful_sync_at'],
                   ),
@@ -901,6 +922,13 @@ class _HotspotWorkspaceState extends State<HotspotWorkspace> {
                 _summarySection(context, 'Sync readiness', {
                   'Dashboard address saved': _yesNo(
                     _hasText(_syncStatus?['dashboard_url']),
+                  ),
+                  'Pairing code saved': _yesNo(
+                    _syncStatus?['pairing_code_saved'] == 1,
+                  ),
+                  'Ready to request pairing': _yesNo(
+                    _hasText(_syncStatus?['dashboard_url']) &&
+                        _syncStatus?['pairing_code_saved'] == 1,
                   ),
                   'Dashboard paired': _yesNo(
                     _syncStatus?['dashboard_status'] == 'Paired',
@@ -939,7 +967,7 @@ class _HotspotWorkspaceState extends State<HotspotWorkspace> {
                   icon: const Icon(Icons.settings_ethernet_outlined),
                   label: const Padding(
                     padding: EdgeInsets.all(12),
-                    child: Text('Set dashboard address'),
+                    child: Text('Set pairing information'),
                   ),
                 ),
                 const SizedBox(height: 12),
@@ -1019,7 +1047,7 @@ class _HotspotWorkspaceState extends State<HotspotWorkspace> {
 
   Widget _dashboardAddressPage(BuildContext context) => Scaffold(
     appBar: AppBar(
-      title: const Text('Dashboard address'),
+      title: const Text('Dashboard pairing'),
       leading: BackButton(onPressed: _back),
     ),
     body: SafeArea(
@@ -1032,7 +1060,7 @@ class _HotspotWorkspaceState extends State<HotspotWorkspace> {
           ),
           const SizedBox(height: 8),
           const Text(
-            'Save the Windows dashboard local address here. This does not pair, upload, sync or delete data yet.',
+            'Save the Windows dashboard local address and the pairing code shown by the future dashboard. This prepares the phone only; it does not pair, upload, sync or delete data yet.',
           ),
           const SizedBox(height: 20),
           TextField(
@@ -1048,15 +1076,31 @@ class _HotspotWorkspaceState extends State<HotspotWorkspace> {
             ),
             onChanged: (_) => widget.session.activity(),
           ),
+          const SizedBox(height: 16),
+          TextField(
+            key: const ValueKey('dashboard-pairing-code'),
+            controller: _pairingCode,
+            keyboardType: TextInputType.number,
+            autocorrect: false,
+            decoration: InputDecoration(
+              labelText: 'Pairing code',
+              helperText: 'Enter the code shown on the future Windows dashboard.',
+              errorText: _dashboardPairingError,
+              prefixIcon: const Icon(Icons.pin_outlined),
+            ),
+            onChanged: (_) => widget.session.activity(),
+          ),
           const SizedBox(height: 20),
           FilledButton.icon(
             key: const ValueKey('save-dashboard-address'),
-            onPressed: _savingDashboardAddress ? null : _saveDashboardAddress,
+            onPressed: _savingDashboardAddress ? null : _saveDashboardPairing,
             icon: const Icon(Icons.save_outlined),
             label: Padding(
               padding: const EdgeInsets.all(12),
               child: Text(
-                _savingDashboardAddress ? 'Saving...' : 'Save address only',
+                _savingDashboardAddress
+                    ? 'Saving...'
+                    : 'Save pairing info only',
               ),
             ),
           ),
@@ -1069,7 +1113,7 @@ class _HotspotWorkspaceState extends State<HotspotWorkspace> {
             icon: const Icon(Icons.clear_outlined),
             label: const Padding(
               padding: EdgeInsets.all(12),
-              child: Text('Clear saved address'),
+              child: Text('Clear saved pairing'),
             ),
           ),
         ],

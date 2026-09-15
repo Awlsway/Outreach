@@ -1,6 +1,6 @@
 # Local SQLite implementation
 
-Current SQLite schema version: 4. Version 2 added authentication credentials; version 3 adds app/device identity for future dashboard sync; version 4 adds local dashboard connection state. Android production builds now open the database through SQLCipher, and phone migration verification passed for the development APK.
+Current SQLite schema version: 5. Version 2 added authentication credentials; version 3 adds app/device identity for future dashboard sync; version 4 adds local dashboard connection state; version 5 adds pairing-preparation fields. Android production builds now open the database through SQLCipher, and phone migration verification passed for the development APK.
 
 ## Scope
 
@@ -21,7 +21,7 @@ The SQLite file is on the phone, not embedded with user records inside the APK. 
 | sync_state | Per-worker last-successful-sync field, initially empty |
 | credentials | Password verifier material linked to a worker; added in schema version 2 |
 | app_identity | One local project/device identity row for future dashboard sync; added in schema version 3 |
-| dashboard_connection | One local dashboard pairing/address state row; added in schema version 4 |
+| dashboard_connection | One local dashboard pairing/address state row; added in schema version 4 and extended in schema version 5 |
 
 There is no permanent client directory. SQLite's internal sqlite_sequence table also appears because audit operations use an incrementing sequence.
 
@@ -34,7 +34,7 @@ There is no permanent client directory. SQLite's internal sqlite_sequence table 
 - lib/main.dart: awaits database creation before showing the existing app shell.
 - test/database_test.dart: native SQLite tests with isolated temporary database files.
 
-Future schema changes must add numbered migrations and increment the schema version. Unsupported downgrades fail rather than deleting the database. Existing historical migrations now cover version 1 → 2 credentials, version 2 → 3 app identity and version 3 → 4 dashboard connection state.
+Future schema changes must add numbered migrations and increment the schema version. Unsupported downgrades fail rather than deleting the database. Existing historical migrations now cover version 1 → 2 credentials, version 2 → 3 app identity, version 3 → 4 dashboard connection state and version 4 → 5 pairing-preparation fields.
 
 ## Implemented guarantees
 

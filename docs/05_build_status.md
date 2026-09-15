@@ -1,5 +1,12 @@
 # Scaffold build status
 
+## Dashboard pairing preparation (0.9.1+16)
+
+- Added SQLite schema version 5 fields on `dashboard_connection` for a locally saved future pairing code and pairing-prepared timestamp.
+- Updated Sync Status to show address saved, pairing code saved, ready to request pairing, dashboard paired and ready to sync as separate checks.
+- Updated the dashboard setup screen to save a local dashboard API address plus a 4-12 digit pairing code. This prepares a later dashboard pairing request only; it does not contact the dashboard, upload data, acknowledge operations or clean up records.
+- Validation completed on the development computer: full Flutter test suite passed with `--concurrency=1`, and debug APK 0.9.1+16 built successfully. No phone install was performed for this increment.
+
 ## Database encryption implementation (0.9.0+15)
 
 - Added SQLCipher database opening for production Android through `sqflite_sqlcipher`.

@@ -377,25 +377,37 @@ class OutreachRepository {
       'dashboard_name': dashboard['dashboard_name'],
       'dashboard_id': dashboard['dashboard_id'],
       'paired_at': dashboard['paired_at'],
+      'pairing_code_saved':
+          (dashboard['pairing_code'] as String?)?.trim().isNotEmpty == true
+          ? 1
+          : 0,
+      'pairing_prepared_at': dashboard['pairing_prepared_at'],
     };
   }
 
-  Future<void> saveDashboardAddress(String address) async {
+  Future<void> saveDashboardPairing(String address, String pairingCode) async {
     final value = address.trim();
+    final code = pairingCode.trim();
     if (value.isEmpty) throw ArgumentError('Dashboard address is required');
+    if (code.isEmpty) throw ArgumentError('Pairing code is required');
+    final stamp = _clock().toUtc().toIso8601String();
     await _db.update('dashboard_connection', {
       'dashboard_url': value,
+      'pairing_code': code,
+      'pairing_prepared_at': stamp,
       'status': 'Not configured',
       'dashboard_id': null,
       'dashboard_name': null,
       'paired_at': null,
-      'updated_at': _clock().toUtc().toIso8601String(),
+      'updated_at': stamp,
     }, where: 'singleton_id = 1');
   }
 
   Future<void> clearDashboardAddress() async {
     await _db.update('dashboard_connection', {
       'dashboard_url': null,
+      'pairing_code': null,
+      'pairing_prepared_at': null,
       'status': 'Not configured',
       'dashboard_id': null,
       'dashboard_name': null,

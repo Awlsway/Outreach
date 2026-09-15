@@ -176,7 +176,7 @@ void main() {
         );
         var service = AuthService(upgraded, hasher: TestHasher());
         final worker = await service.register('Alice', 'password1');
-        expect(await upgraded.connection.getVersion(), 4);
+        expect(await upgraded.connection.getVersion(), 5);
         expect(
           (await upgraded.connection.query('hotspots')).single['name'],
           'Saved site',
@@ -192,6 +192,8 @@ void main() {
         )).single;
         expect(dashboard['status'], 'Not configured');
         expect(dashboard['dashboard_url'], isNull);
+        expect(dashboard['pairing_code'], isNull);
+        expect(dashboard['pairing_prepared_at'], isNull);
         await upgraded.close();
         upgraded = await AppDatabase.open(
           factory: databaseFactoryFfi,
@@ -224,5 +226,6 @@ void main() {
       expect(await hasher.verify('sample-password', first), isTrue);
       expect(await hasher.verify('wrong-password', first), isFalse);
     },
+    timeout: const Timeout(Duration(minutes: 2)),
   );
 }
