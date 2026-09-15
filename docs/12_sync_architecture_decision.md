@@ -10,9 +10,15 @@ The Android APK will sync directly with a Windows desktop dashboard over the off
 
 The communication channel will be:
 
-`Android APK -> local Wi-Fi or phone hotspot network -> Windows dashboard local HTTP API`
+`Android APK -> local Wi-Fi or phone hotspot network -> Windows dashboard HTTPS device API`
 
 The dashboard will run a small local server while it is open. The phone will send queued changes to that local server only when the worker taps Sync.
+
+The current joint contract uses a separate HTTPS device API for phones:
+
+`https://<office-server-ip>:3443/api/v1`
+
+The existing browser dashboard may remain on `http://<office-server-ip>:3000` for synthetic integration UAT only. Before real Outreach reporting is shown through the browser dashboard, the PM must either migrate browser traffic to HTTPS or formally accept and document the remaining HTTP risk.
 
 No cloud server, Google Drive, email, Bluetooth, USB file copy, phone-to-phone sync, or automatic background sync is part of this plan.
 
@@ -58,7 +64,8 @@ For the first production-ready version, use a simple manual connection method.
 The dashboard should display:
 
 - Office computer name.
-- Local network address, such as `http://192.168.1.20:port`.
+- Phone sync API address, such as `https://192.168.1.20:3443/api/v1`.
+- Full certificate SHA-256 fingerprint for APK verification.
 - A pairing code or QR code.
 
 The APK should allow the worker or data assistant to enter or scan that connection information. After pairing, the APK can remember the dashboard address.
@@ -71,12 +78,13 @@ The phone should not send data to any random computer on the network. Before fir
 
 Minimum pairing design:
 
-- Dashboard shows a short one-time pairing code.
+- Dashboard shows a six-digit one-time pairing code.
 - APK user enters or scans the code.
-- Dashboard approves and records the phone/device identity.
-- APK stores the paired dashboard identity.
+- APK verifies the dashboard certificate fingerprint before sending the request.
+- A valid code pairs the phone immediately and returns a hidden device credential.
+- APK stores the paired dashboard identity, certificate fingerprint and device credential in secure storage.
 
-Future security hardening may include certificate trust, encrypted transport and stronger device approval. For development, the important rule is: do not silently send client data to an unpaired address.
+For development, the important rule is: do not silently send client data to an unpaired or untrusted address. Unexpected certificate changes must block sync until an approved rotation or re-pairing process is completed.
 
 ## Sync payload
 
@@ -85,6 +93,7 @@ The APK already stores operations in an audit/outbox model. Sync should send ope
 Each sync batch should include:
 
 - Protocol version.
+- APK schema version.
 - Project ID.
 - Batch ID.
 - Device ID.
@@ -112,6 +121,8 @@ Each operation should include:
 - Payload.
 
 The dashboard must treat operation IDs as idempotent. If the same phone retries the same operation after a timeout, the dashboard should not create duplicate records.
+
+Current limits are 100 operations and 1 MiB JSON per upload batch. Each upload request has a 30-second timeout. After the initial request, the APK may make at most three foreground retries after approximately 5, 15 and 30 seconds, with visible progress and a Stop action.
 
 ## Acknowledgement rule
 
@@ -149,7 +160,7 @@ The only future download candidates are non-client reference data, such as appro
 When the Windows dashboard project starts, build it around these components:
 
 - Local database for full history.
-- Local HTTP API for phone sync.
+- Separate HTTPS device API for phone sync.
 - Pairing/phone approval screen.
 - Worker/account management screen.
 - Sync review/log screen.

@@ -2,6 +2,8 @@
 
 This document describes the planned API between the Android APK and the future Windows dashboard. The dashboard is not implemented yet. This is the handover contract that future dashboard development should follow so the APK and dashboard can sync without changing business rules later.
 
+Current joint draft status is tracked in [19_joint_sync_contract_status.md](19_joint_sync_contract_status.md). The current joint LAN technical contract supersedes earlier HTTP sync examples: phone sync must use the HTTPS device API on port `3443`; the browser dashboard on HTTP port `3000` is allowed only for synthetic integration UAT unless the PM formally accepts the HTTP browser risk before real Outreach reporting.
+
 ## Reference documents for the dashboard developer
 
 Read these documents before designing the dashboard database, screens or API:
@@ -15,6 +17,16 @@ Read these documents before designing the dashboard database, screens or API:
 7. [10_daily_summary.md](10_daily_summary.md) — phone-side summary definitions, including unique people.
 8. [11_today_records.md](11_today_records.md) — own-record list/detail/edit/delete behavior.
 9. [12_sync_architecture_decision.md](12_sync_architecture_decision.md) — locked sync architecture and boundaries.
+10. [15_security_recovery_plan.md](15_security_recovery_plan.md) — password recovery, device passcode and lost-phone handling decisions.
+11. [16_database_encryption_plan.md](16_database_encryption_plan.md) — APK SQLCipher and secure-storage status.
+12. [17_pre_pilot_readiness.md](17_pre_pilot_readiness.md) — pilot readiness gates.
+13. [18_release_signing_plan.md](18_release_signing_plan.md) — release signing and installation rules.
+14. [19_joint_sync_contract_status.md](19_joint_sync_contract_status.md) — current joint APK/LAN sync contract status.
+
+Also read the LAN project drafts:
+
+- `D:\LAN\docs\Outreach_LAN_API_Technical_Contract_v1.md`
+- `D:\LAN\docs\Outreach_LAN_Security_Operations_Design.md`
 
 The dashboard developer should treat this file as the detailed API contract, and the files above as the business and data context behind it.
 
@@ -44,23 +56,32 @@ The phone stores pending sync data in `audit_operations` and `sync_outbox`.
 
 The APK syncs to the dashboard over the office local network only.
 
-`Android APK -> office Wi-Fi or phone hotspot network -> Windows dashboard local HTTP API`
+`Android APK -> office Wi-Fi or phone hotspot network -> Windows dashboard HTTPS device API`
 
-The dashboard must run a local HTTP API while it is open. The APK sends data only when the worker manually taps Sync. There is no cloud server, automatic background sync, USB file copy, email transfer, Google Drive transfer or phone-to-phone sync in the current plan.
+The dashboard project has two local listeners during the pilot:
+
+| Purpose | Address pattern | Rule |
+| --- | --- | --- |
+| Browser dashboard | `http://<office-server-ip>:3000` | Allowed for synthetic integration UAT only unless the PM accepts the browser HTTP risk before real Outreach reporting |
+| Phone sync API | `https://<office-server-ip>:3443/api/v1` | Required for real APK sync |
+
+The APK sends data only when the worker manually taps Sync. There is no cloud server, automatic background sync, USB file copy, email transfer, Google Drive transfer or phone-to-phone sync in the current plan.
+
+The LAN browser session and the phone device credential are separate authentication boundaries. The phone sync API must not accept browser login credentials, and the browser dashboard must not accept a phone device credential as a browser login.
 
 ## API version
 
 Use API version `v1` for the first dashboard implementation.
 
-Recommended base URL pattern:
+Required phone sync base URL pattern:
 
-`http://<dashboard-local-address>:<port>/api/v1`
+`https://<dashboard-local-address>:3443/api/v1`
 
 Example:
 
-`http://192.168.1.20:8080/api/v1`
+`https://192.168.1.20:3443/api/v1`
 
-The dashboard should display its current local address and port on screen so the data assistant can pair phones.
+The dashboard should display its current local device API address and full certificate SHA-256 fingerprint on screen so staff can verify the fingerprint during pairing. Plain HTTP is prohibited for real APK sync.
 
 ## Required dashboard endpoints
 
@@ -88,11 +109,18 @@ Example response:
 
 Purpose: register or approve a phone/device before it can sync client data.
 
+The pairing request must be sent only after the APK has verified the dashboard certificate fingerprint. The pairing code is exactly six digits, expires after 10 minutes, is blocked after five incorrect attempts, permits one successful use only, and may be cancelled while unused by LAN Admin, Officer, or Assistant.
+
+Creating the pairing code in the dashboard is the approval. When the APK submits a valid code, the phone pairs immediately and receives its hidden device credential. No second dashboard approval screen is required.
+
 Example request:
 
 ```json
 {
   "api_version": 1,
+  "protocol": "ansvk-outreach-sync",
+  "protocol_version": 1,
+  "schema_version": 6,
   "project_id": "ansvk_outreach",
   "project_name": "ANSVK Outreach",
   "device_id": "8c8df2a3-8f46-4f1f-98e6-a2c7f8cbb801",
@@ -114,6 +142,7 @@ Example success response:
   "dashboard_id": "office-dashboard-001",
   "dashboard_name": "Office dashboard",
   "paired_device_id": "8c8df2a3-8f46-4f1f-98e6-a2c7f8cbb801",
+  "device_credential": "opaque-credential-returned-once",
   "paired_at": "2026-09-12T08:35:20Z"
 }
 ```
@@ -129,7 +158,9 @@ Example rejection response:
 }
 ```
 
-The exact pairing security can improve later, but the first real sync must not silently send data to an unpaired dashboard.
+The `device_credential` must be an opaque bearer credential with at least 256 bits of entropy. LAN returns it once. The APK stores it in Android secure storage and must never display, log, store in SQLite, or include it in audit payloads. LAN stores only a verifier or hash.
+
+The APK-generated `worker_id` is preserved. Successful pairing creates a provisional Outreach worker on LAN. The first matching revision-1 `worker/create` operation confirms that worker. Only one active device is permitted per `worker_id`; replacement requires revocation or retirement of the prior device and re-pairing.
 
 ### Sync batch upload
 
@@ -144,7 +175,9 @@ Batch header fields:
 | Field | Source / meaning |
 | --- | --- |
 | `api_version` | API version; first version is `1` |
-| `protocol` | Fixed protocol label, recommended `ansvk-outreach-sync` |
+| `protocol` | Fixed protocol label `ansvk-outreach-sync` |
+| `protocol_version` | First protocol version is `1` |
+| `schema_version` | APK SQLite schema version; first supported version is `6` |
 | `batch_id` | Generated UUID for this send attempt |
 | `project_id` | From APK `app_identity.project_id`; currently `ansvk_outreach` |
 | `project_name` | From APK `app_identity.project_name`; currently `ANSVK Outreach` |
@@ -161,6 +194,8 @@ Example request:
 {
   "api_version": 1,
   "protocol": "ansvk-outreach-sync",
+  "protocol_version": 1,
+  "schema_version": 6,
   "batch_id": "3cd9e5ad-b812-4942-b1d3-218f24fd4b1b",
   "project_id": "ansvk_outreach",
   "project_name": "ANSVK Outreach",
@@ -412,6 +447,16 @@ Example partial rejection response:
 
 The APK may mark only the listed accepted operation IDs and revisions as acknowledged. Rejected or missing operations must stay pending on the phone.
 
+### Sync status
+
+`GET /api/v1/sync/status`
+
+Purpose: let a paired phone check dashboard reachability, device status, server time and last known acknowledgement state without uploading an empty batch.
+
+Empty pending queues should use this endpoint instead of sending an empty `/sync/batches` request.
+
+The dashboard should return clear status if the device credential is invalid, revoked, retired, unsupported, or temporarily unable to accept uploads.
+
 ## Operation rules
 
 The dashboard must store every accepted operation durably before acknowledging it.
@@ -435,6 +480,8 @@ Operations may use these actions:
 - `delete`
 
 The dashboard should apply parent records before child records. For example, a hotspot create operation must be accepted before an encounter for that hotspot can be accepted.
+
+If a required parent operation is missing, the dashboard should return a retryable `missing_prior_revision` or `missing_parent_operation` style error and leave the dependent operation unacknowledged.
 
 For encounter update/delete operations, the operation's top-level `revision` must match `payload.after.revision`.
 
@@ -576,6 +623,8 @@ Hotspot data remains on the phone. Client/encounter data older than the retentio
 
 The current APK keeps today and the six preceding local calendar dates on the phone. Older client records are counted in Sync Status, but cleanup remains disabled until real dashboard acknowledgement and cleanup implementation exist.
 
+Server records are not automatically deleted during the pilot. Manual server deletion requires Admin approval, verified backup and an audit entry. The server does not inherit the phone's seven-day cleanup rule.
+
 ## Error code guidance
 
 Use machine-readable error codes so the APK can show clear status and decide whether retry is useful.
@@ -586,12 +635,31 @@ Recommended first error codes:
 | --- | --- | --- |
 | `not_paired` | Device has not paired with this dashboard | No |
 | `invalid_pairing_code` | Pairing code was wrong or expired | No |
+| `expired_pairing_code` | Pairing code passed its 10-minute validity window | No |
+| `pairing_attempts_exhausted` | Pairing code had five incorrect attempts | No |
+| `pairing_code_used` | Pairing code was already successfully used | No |
+| `pairing_code_cancelled` | Pairing code was cancelled while unused | No |
+| `worker_has_active_device` | Worker already has an active paired device | No |
+| `invalid_device_credential` | Device credential is missing or invalid | No |
+| `device_revoked` | Device credential was revoked after loss or incident | No |
+| `device_retired` | Device was retired and can no longer sync | No |
+| `worker_device_mismatch` | Credential does not match the worker/device in the request | No |
 | `unsupported_api_version` | Dashboard does not support requested API version | No |
+| `unsupported_protocol_version` | Dashboard does not support requested sync protocol version | No |
+| `unsupported_schema_version` | Dashboard does not support the APK schema version | No |
 | `unknown_project` | Dashboard does not recognize the project ID | No |
 | `invalid_payload` | JSON is missing required fields or has invalid values | No |
+| `invalid_batch_id` | Batch ID is malformed or conflicts with a prior batch | No |
+| `batch_too_large` | JSON body or operation count exceeds the supported limit | No |
 | `duplicate_conflict` | Same operation ID was reused with conflicting content | No |
 | `missing_parent_hotspot` | Encounter arrived before the required hotspot | Yes |
+| `missing_prior_revision` | Update/delete arrived before the dashboard has the required earlier revision | Yes |
+| `missing_parent_operation` | A dependent operation arrived before its accepted parent operation | Yes |
 | `temporary_storage_error` | Dashboard could not safely save data at this time | Yes |
+| `rate_limited` | Dashboard temporarily limited repeated requests | Yes |
+| `service_unavailable` | Dashboard storage or device API is temporarily unavailable | Yes |
+
+The APK may also show local certificate trust errors before it sends a request, such as `untrusted_dashboard_certificate`, `dashboard_certificate_changed`, or `certificate_rotation_required`.
 
 ## What the dashboard must not do
 
@@ -602,6 +670,8 @@ Recommended first error codes:
 - Do not treat a received batch as all-or-nothing unless the response clearly lists no accepted operations.
 - Do not accept password verifier material in sync batches.
 - Do not tell the phone to delete client data unless the exact latest operations have been acknowledged.
+- Do not link Outreach `client_code` to MIS `CCode`.
+- Do not feed Outreach data into MIS KPIs, targets, validation, reconciliation, client search or LMIS.
 
 ## First dashboard screens implied by this contract
 
@@ -617,6 +687,10 @@ The future dashboard should include:
 
 These screens are dashboard scope, not APK scope.
 
+Outreach reporting must be in a separate Outreach module. It must remain separate from MIS and LMIS storage, validation and reporting logic.
+
 ## Current implementation status
 
 The APK does not yet implement real network sync, a real pairing request or retention cleanup. The APK already stores local operations in an audit/outbox model, has an app identity row with project/device metadata, and has a dashboard connection row reserved for future pairing/address state. The APK can save a dashboard API address and pairing code locally, but this only prepares a later pairing request; it is not pairing and does not permit upload. The APK has a Sync status screen showing pending operation count, pairing preparation and retention safety counts until the dashboard API exists.
+
+Before real APK sync implementation starts, update the sync UI and networking code to this joint contract: HTTPS port `3443`, full certificate SHA-256 fingerprint pinning, six-digit pairing-code exchange for a hidden device credential, `/sync/status` for empty queues, 100-operation and 1 MiB batch limits, 30-second timeout, at most three foreground retries, exact acknowledgement handling and seven-day cleanup only after safe acknowledgement.

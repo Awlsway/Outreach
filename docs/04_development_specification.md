@@ -76,7 +76,7 @@ Tables: workers, hotspots, hotspot_peers, encounters, audit_operations, sync_out
 
 ## Future desktop sync architecture
 
-The sync architecture decision is now documented in 12_sync_architecture_decision.md. The detailed future endpoint and JSON contract is documented in 13_dashboard_api_contract.md. The locked direction is Android APK to Windows dashboard over the office local network using a dashboard-hosted local HTTP API. Sync is manual, upload-only for client data, paired before use, and acknowledged per operation before the phone marks anything synced.
+The sync architecture decision is now documented in 12_sync_architecture_decision.md. The detailed future endpoint and JSON contract is documented in 13_dashboard_api_contract.md. The current joint APK/LAN contract status is documented in 19_joint_sync_contract_status.md. The locked direction is Android APK to Windows dashboard over the office local network using a separate HTTPS device API on port 3443. Sync is manual, upload-only for client data, paired before use, and acknowledged per operation before the phone marks anything synced.
 
 No automatic background syncing. The first APK may show Sync with an explanatory Desktop connection not configured state and pending-change count. A development fake service must not be packaged as a successful production connection.
 

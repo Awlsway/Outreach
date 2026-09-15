@@ -108,9 +108,9 @@ The **Retention safety** section shows whether old client records exist on the p
 
 The **Pending changes** screen shows operation type, action, revision and time. It does not show full client payload details.
 
-The **Dashboard pairing** screen can save or clear a future local dashboard API address and pairing code. The address may look like:
+The **Dashboard pairing** screen can save or clear a future local dashboard API address and pairing code. This is preparation only in the current APK. When real sync is implemented, the phone sync address must use HTTPS on port 3443, for example:
 
-`http://192.168.1.20:8080/api/v1`
+`https://192.168.1.20:3443/api/v1`
 
 Saving pairing information does not pair the phone, test the connection, upload data, acknowledge data or delete records.
 
