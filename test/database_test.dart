@@ -128,12 +128,12 @@ void main() {
       expect(status['pairing_code_saved'], 0);
       expect(status['pairing_prepared_at'], isNull);
       await repo.saveDashboardPairing(
-        ' http://192.168.1.20:8080/api/v1 ',
-        ' 123456 ',
+        ' https://192.168.1.50:3443/api/v1 ',
+        ' 012345 ',
       );
       final configured = await repo.syncStatus();
       expect(configured['dashboard_status'], 'Not configured');
-      expect(configured['dashboard_url'], 'http://192.168.1.20:8080/api/v1');
+      expect(configured['dashboard_url'], 'https://192.168.1.50:3443/api/v1');
       expect(configured['dashboard_id'], isNull);
       expect(configured['paired_at'], isNull);
       expect(configured['pairing_code_saved'], 1);

@@ -127,6 +127,6 @@ The dashboard may show Outreach reports in its own Outreach module, but it must 
 
 ## APK implementation boundary
 
-The current APK may keep showing saved dashboard address and pairing-code preparation, but those fields are not real pairing yet.
+The current APK may keep showing saved HTTPS dashboard address, six-digit pairing-code preparation and certificate fingerprint preparation, but those fields are not real pairing yet.
 
 Before real APK sync implementation starts, the APK sync UI and networking code must follow this joint contract: HTTPS port 3443, certificate fingerprint pinning, pairing-code exchange for a hidden device credential, explicit acknowledgement tracking, retry limits, and safe cleanup only after exact acknowledgement and seven-day retention.

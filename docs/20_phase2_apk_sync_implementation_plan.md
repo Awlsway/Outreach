@@ -1,6 +1,6 @@
 # Phase 2 APK sync implementation plan
 
-**Status:** Draft plan; runtime sync coding is not authorized yet  
+**Status:** P2.1 authorized and implemented; P2.2-P2.8 are not authorized yet
 **Date:** 2026-09-16  
 **Owner:** Outreach APK team  
 **Depends on:** LAN Phase 1 ingestion foundation and accepted v1 fixtures
@@ -14,6 +14,8 @@ Phase 2 turns the current APK sync preparation into real pairing, upload, acknow
 ## 2. Start gate
 
 Do not start APK runtime sync coding until LAN Phase 1 P1.8 passes and both teams confirm the same fixture checksums.
+
+P2.1 was separately authorized after the user's "ok proceed" instruction and LAN PM review. That authorization is limited to sync configuration UI alignment, local validation, secure-storage handling for the manually entered certificate fingerprint, and focused tests. It does not authorize network transport, certificate inspection, real pairing, upload, acknowledgement, retry handling, cleanup, deployment, or real data.
 
 Required LAN evidence before APK implementation starts:
 
@@ -30,13 +32,15 @@ Required LAN evidence before APK implementation starts:
 
 ### P2.1 Sync configuration UI alignment
 
+Status: implemented as a preparation-only change.
+
 Purpose: update the current Dashboard Pairing preparation screen so workers and data assistant enter the future real connection details safely.
 
 Tasks:
 
-- Require HTTPS API address format such as `https://192.168.1.20:3443/api/v1`.
+- Require HTTPS API address format such as `https://192.168.1.50:3443/api/v1`.
 - Show that plain HTTP is not accepted for real phone sync.
-- Add certificate SHA-256 fingerprint entry or scan support.
+- Add certificate SHA-256 fingerprint entry. Scanning is not required for this chunk.
 - Keep the current state as preparation only until real pairing succeeds.
 - Do not upload data from this screen.
 
@@ -46,7 +50,18 @@ Exit criteria:
 - Saved configuration survives app restart.
 - Clearing configuration does not delete local outreach records or pending operations.
 
+Implementation notes:
+
+- The dashboard address must use `https` and end with `/api/v1`.
+- The pairing code must be exactly six digits. Leading zeros are preserved.
+- The full approved certificate SHA-256 fingerprint is normalized and stored in secure storage, not SQLite.
+- Sync Status shows only a short fingerprint hint.
+- The full APK SQLite schema remains version 6, matching the accepted v1 fixture contract.
+- Phone test: a release-signed P2.1 test APK was installed on `ORCE49UWDQVGRC49`; the user reported that the preparation flow behaved as instructed and still did not sync.
+
 ### P2.2 Certificate fingerprint pinning
+
+Status: not authorized.
 
 Purpose: prevent the APK from sending pairing or sync data to an untrusted dashboard.
 
@@ -66,6 +81,8 @@ Exit criteria:
 
 ### P2.3 Pairing request and credential storage
 
+Status: not authorized.
+
 Purpose: pair the phone once and receive the hidden device credential.
 
 Tasks:
@@ -83,6 +100,8 @@ Exit criteria:
 - The APK can restart and remain paired without asking for the pairing code again.
 
 ### P2.4 Build sync batch client
+
+Status: not authorized.
 
 Purpose: send pending local audit operations exactly as the contract requires.
 
@@ -103,6 +122,8 @@ Exit criteria:
 
 ### P2.5 Apply acknowledgements safely
 
+Status: not authorized.
+
 Purpose: mark only exact accepted operations as synced.
 
 Tasks:
@@ -121,6 +142,8 @@ Exit criteria:
 
 ### P2.6 Retry, stop and availability behavior
 
+Status: not authorized.
+
 Purpose: make manual sync reliable without hiding uncertainty.
 
 Tasks:
@@ -138,6 +161,8 @@ Exit criteria:
 - The UI never shows success unless all currently attempted operations are acknowledged.
 
 ### P2.7 Retention cleanup activation
+
+Status: not authorized.
 
 Purpose: enable the seven-day phone cleanup only after exact dashboard acknowledgement works.
 
@@ -158,6 +183,8 @@ Exit criteria:
 - Retention status shows what was eligible, held and cleaned.
 
 ### P2.8 Joint synthetic UAT and release gate
+
+Status: not authorized.
 
 Purpose: prove APK Phase 2 against LAN Phase 1 before real data.
 

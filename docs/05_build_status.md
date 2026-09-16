@@ -1,5 +1,19 @@
 # Scaffold build status
 
+## P2.1 sync configuration alignment
+
+- Limited P2.1 authorization was granted after the user's "ok proceed" instruction and LAN PM review. Only sync configuration UI alignment was authorized; P2.2-P2.8 remain unauthorized.
+- Updated the Dashboard Pairing preparation screen to require an HTTPS device API address ending in `/api/v1`, such as `https://192.168.1.50:3443/api/v1`.
+- Updated pairing-code validation to exactly six digits and preserve leading zeros.
+- Added manual full certificate SHA-256 fingerprint entry and validation. The full approved fingerprint is stored through secure storage, not SQLite. Sync Status shows only a short fingerprint hint.
+- The screen remains preparation-only. It does not inspect the live certificate, send network requests, pair, upload, acknowledge, retry, enable cleanup, or report sync success.
+- Clearing saved pairing clears the saved address/code and fingerprint trust value without deleting offline records, audit operations, pending outbox rows or app identity.
+- Validation completed on the development computer: focused database and hotspot widget tests passed with `flutter test test\database_test.dart test\hotspot_widget_test.dart --concurrency=1`; full Flutter tests passed with `flutter test --concurrency=1`; static analysis passed with `flutter analyze --no-pub`.
+- A debug APK built successfully but could not update the phone because the phone had a release-signed build installed.
+- A release-signed P2.1 test APK then built successfully and installed over the existing release app on phone `ORCE49UWDQVGRC49`, preserving app data. Output: `build\app\outputs\flutter-apk\app-release.apk`; size 65,719,310 bytes; SHA-256 `1F913CA30A0A13BEC869BCB735E7631333B6593170C0077B7E6A0B1F02865F8F`.
+- The user completed the manual P2.1 phone check and reported that the APK behaved as instructed: HTTPS/pairing-code/fingerprint preparation worked and sync remained preparation-only.
+- No push, real LAN test, network pairing, upload, acknowledgement, cleanup or real data was performed for this P2.1 chunk.
+
 ## Pre-pilot readiness checklist
 
 - Added `docs/17_pre_pilot_readiness.md` as the current review artifact for deciding whether the APK can move beyond development testing.
@@ -23,7 +37,7 @@
 
 - Added SQLite schema version 5 fields on `dashboard_connection` for a locally saved future pairing code and pairing-prepared timestamp.
 - Updated Sync Status to show address saved, pairing code saved, ready to request pairing, dashboard paired and ready to sync as separate checks.
-- Updated the dashboard setup screen to save a local dashboard API address plus a 4-12 digit pairing code. This prepares a later dashboard pairing request only; it does not contact the dashboard, upload data, acknowledge operations or clean up records.
+- Updated the dashboard setup screen to save a local dashboard API address plus a pairing code. This prepares a later dashboard pairing request only; it does not contact the dashboard, upload data, acknowledge operations or clean up records. P2.1 later tightened this preparation field to exactly six digits.
 - Validation completed on the development computer: full Flutter test suite passed with `--concurrency=1`, and debug APK 0.9.1+16 built successfully.
 - Phone install over existing test data succeeded on device `ORCE49UWDQVGRC49`. User phone walkthrough passed: Dashboard pairing accepted a local dashboard address and pairing code, Sync Status showed address/code prepared, and real sync remained unavailable because the Windows dashboard is not built yet.
 

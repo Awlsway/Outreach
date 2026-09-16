@@ -243,6 +243,7 @@ void main() {
     expect(find.text('Sync readiness'), findsOneWidget);
     expect(find.text('Dashboard address saved'), findsOneWidget);
     expect(find.text('Pairing code saved'), findsOneWidget);
+    expect(find.text('Certificate fingerprint saved'), findsOneWidget);
     expect(find.text('Ready to request pairing'), findsOneWidget);
     expect(find.text('Dashboard paired'), findsOneWidget);
     expect(find.text('Ready to sync'), findsOneWidget);
@@ -305,22 +306,62 @@ void main() {
     expect(find.text('Save pairing info only'), findsOneWidget);
     await tester.enterText(
       find.byKey(const ValueKey('dashboard-address')),
-      'http://192.168.1.20:8080/api/v1',
+      'http://192.168.1.50:3443/api/v1',
     );
     await tester.enterText(
       find.byKey(const ValueKey('dashboard-pairing-code')),
       '123456',
+    );
+    await tester.enterText(
+      find.byKey(const ValueKey('dashboard-certificate-fingerprint')),
+      '00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff',
+    );
+    await tap(tester, find.byKey(const ValueKey('save-dashboard-address')));
+    expect(
+      find.text('Enter the HTTPS device API address ending with /api/v1.'),
+      findsOneWidget,
+    );
+    await tester.enterText(
+      find.byKey(const ValueKey('dashboard-address')),
+      'https://192.168.1.50:3443/api/v1',
+    );
+    await tester.enterText(
+      find.byKey(const ValueKey('dashboard-pairing-code')),
+      '12345',
+    );
+    await tap(tester, find.byKey(const ValueKey('save-dashboard-address')));
+    expect(
+      find.text('Enter the exact 6-digit pairing code from the dashboard.'),
+      findsOneWidget,
+    );
+    await tester.enterText(
+      find.byKey(const ValueKey('dashboard-pairing-code')),
+      '012345',
+    );
+    await tester.enterText(
+      find.byKey(const ValueKey('dashboard-certificate-fingerprint')),
+      'not-a-fingerprint',
+    );
+    await tap(tester, find.byKey(const ValueKey('save-dashboard-address')));
+    expect(
+      find.text('Enter the full SHA-256 certificate fingerprint.'),
+      findsOneWidget,
+    );
+    await tester.enterText(
+      find.byKey(const ValueKey('dashboard-certificate-fingerprint')),
+      '00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff',
     );
     await tap(tester, find.byKey(const ValueKey('save-dashboard-address')));
     await flush(tester);
     await tester.pumpAndSettle();
     expect(find.text('Sync status'), findsOneWidget);
     await tester.scrollUntilVisible(
-      find.text('http://192.168.1.20:8080/api/v1'),
+      find.text('https://192.168.1.50:3443/api/v1'),
       -200,
       scrollable: visibleListScrollable(),
     );
-    expect(find.text('http://192.168.1.20:8080/api/v1'), findsOneWidget);
+    expect(find.text('https://192.168.1.50:3443/api/v1'), findsOneWidget);
+    expect(find.text('...8899AABBCCDDEEFF'), findsOneWidget);
     expect(find.text('Not configured'), findsOneWidget);
     await tester.scrollUntilVisible(
       find.text('Dashboard address saved'),
@@ -346,7 +387,8 @@ void main() {
     expect(find.text('Clear saved pairing'), findsOneWidget);
     await tap(tester, find.byKey(const ValueKey('clear-dashboard-address')));
     expect(find.text('Sync status'), findsOneWidget);
-    expect(find.text('http://192.168.1.20:8080/api/v1'), findsNothing);
+    expect(find.text('https://192.168.1.50:3443/api/v1'), findsNothing);
+    expect(find.text('...8899AABBCCDDEEFF'), findsNothing);
     session.logout();
   });
 

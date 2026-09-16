@@ -182,7 +182,7 @@ The APK now has a Sync status screen that shows:
 - Desktop connection status: Not configured.
 - A disabled Sync button or an explanatory message.
 
-The APK also has a local dashboard connection row in SQLite. It starts as Not configured and is reserved for future dashboard address/pairing information. The APK can save a dashboard address and pairing code locally, but this only prepares a later pairing request. It is not pairing and does not allow upload yet.
+The APK also has a local dashboard connection row in SQLite. It starts as Not configured and is reserved for future dashboard address/pairing information. The APK can save an HTTPS dashboard device API address, six-digit pairing code and approved certificate fingerprint locally. The full fingerprint is kept in secure storage. This only prepares a later pairing request. It is not pairing and does not allow upload yet.
 
 This prepares the user workflow without pretending that dashboard sync is already available.
 

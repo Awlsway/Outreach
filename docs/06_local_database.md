@@ -30,6 +30,7 @@ There is no permanent client directory. SQLite's internal sqlite_sequence table 
 - lib/database/schema.dart: numbered migrations, columns, indexes, constraints and triggers.
 - lib/database/app_database.dart: database opening, SQLCipher production access, foreign-key activation, versioning, one-time plaintext development migration and close lifecycle.
 - lib/database/database_key_store.dart: generated local SQLCipher passphrase storage using flutter_secure_storage.
+- lib/sync/certificate_fingerprint_store.dart: future dashboard certificate fingerprint storage using secure storage. The full fingerprint is not stored in SQLite.
 - lib/database/outreach_repository.dart: worker-scoped storage methods and atomic mutation/audit/outbox transactions.
 - lib/main.dart: awaits database creation before showing the existing app shell.
 - test/database_test.dart: native SQLite tests with isolated temporary database files.

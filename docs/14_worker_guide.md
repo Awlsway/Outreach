@@ -96,6 +96,7 @@ The screen shows:
 - Pending change breakdown.
 - Whether a dashboard address is saved.
 - Whether a pairing code is saved.
+- Whether a certificate fingerprint is saved.
 - Whether the phone is ready to request pairing later.
 - Whether the phone is paired.
 - Whether sync is ready.
@@ -108,11 +109,11 @@ The **Retention safety** section shows whether old client records exist on the p
 
 The **Pending changes** screen shows operation type, action, revision and time. It does not show full client payload details.
 
-The **Dashboard pairing** screen can save or clear a future local dashboard API address and pairing code. This is preparation only in the current APK. When real sync is implemented, the phone sync address must use HTTPS on port 3443, for example:
+The **Dashboard pairing** screen can save or clear a future local dashboard API address, six-digit pairing code and certificate SHA-256 fingerprint. This is preparation only in the current APK. When real sync is implemented, the phone sync address must use HTTPS on port 3443, for example:
 
-`https://192.168.1.20:3443/api/v1`
+`https://192.168.1.50:3443/api/v1`
 
-Saving pairing information does not pair the phone, test the connection, upload data, acknowledge data or delete records.
+Saving pairing information does not inspect the certificate, pair the phone, test the connection, upload data, acknowledge data or delete records.
 
 ## Important limitations
 
