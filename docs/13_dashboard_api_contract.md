@@ -1,6 +1,6 @@
 # Dashboard API contract
 
-This document describes the planned API between the Android APK and the future Windows dashboard. The dashboard is not implemented yet. This is the handover contract that future dashboard development should follow so the APK and dashboard can sync without changing business rules later.
+This document describes the planned API between the Android APK and the Windows LAN Outreach dashboard foundation. The LAN project now contains an Outreach device API foundation and matching fixtures, but live phone pairing, upload, acknowledgement and cleanup have not been verified or enabled for real use. This file remains the APK-side contract that keeps the phone and dashboard aligned.
 
 Current joint draft status is tracked in [19_joint_sync_contract_status.md](19_joint_sync_contract_status.md). The current joint LAN technical contract supersedes earlier HTTP sync examples: phone sync must use the HTTPS device API on port `3443`; the browser dashboard on HTTP port `3000` is allowed only for synthetic integration UAT unless the PM formally accepts the HTTP browser risk before real Outreach reporting.
 
@@ -22,6 +22,7 @@ Read these documents before designing the dashboard database, screens or API:
 12. [17_pre_pilot_readiness.md](17_pre_pilot_readiness.md) — pilot readiness gates.
 13. [18_release_signing_plan.md](18_release_signing_plan.md) — release signing and installation rules.
 14. [19_joint_sync_contract_status.md](19_joint_sync_contract_status.md) — current joint APK/LAN sync contract status.
+15. [21_controlled_synthetic_connection_plan.md](21_controlled_synthetic_connection_plan.md) — staged certificate-only and synthetic pairing test plan before any live sync work.
 
 Also read the LAN project drafts:
 
@@ -32,7 +33,7 @@ The dashboard developer should treat this file as the detailed API contract, and
 
 ## Contract source of truth
 
-This contract is based on the current APK SQLite schema version 6 and repository behavior in app version `0.9.2+17`.
+This contract is based on the current APK SQLite schema version 6 and repository behavior in app version `0.9.3+18`.
 
 The phone stores pending sync data in `audit_operations` and `sync_outbox`.
 
@@ -128,7 +129,7 @@ Example request:
   "worker_id": "65d24c79-807e-45a4-ae3b-719214ed8d3e",
   "username": "worker1",
   "pairing_code": "123456",
-  "app_version": "0.9.2+17",
+  "app_version": "0.9.3+18",
   "requested_at": "2026-09-12T08:35:00Z"
 }
 ```
@@ -202,7 +203,7 @@ Example request:
   "device_id": "8c8df2a3-8f46-4f1f-98e6-a2c7f8cbb801",
   "device_created_at": "2026-09-12T07:00:00Z",
   "worker_id": "65d24c79-807e-45a4-ae3b-719214ed8d3e",
-  "app_version": "0.9.2+17",
+  "app_version": "0.9.3+18",
   "batch_created_at": "2026-09-12T08:40:00Z",
   "operations": [
     {
@@ -520,7 +521,7 @@ Sync state fields:
 | `retention_checked_at` | Reserved for the last future retention-check timestamp |
 | `retention_cleanup_at` | Reserved for the last future retention-cleanup timestamp |
 
-The current APK uses sync state to show status only. It does not mark operations acknowledged or clean old records because the dashboard does not exist yet.
+The current APK uses sync state to show status only. It does not mark operations acknowledged or clean old records because live dashboard acknowledgement is not enabled or verified yet.
 
 Worker payload fields:
 
@@ -694,3 +695,4 @@ Outreach reporting must be in a separate Outreach module. It must remain separat
 The APK does not yet implement real network sync, a real pairing request or retention cleanup. The APK already stores local operations in an audit/outbox model, has an app identity row with project/device metadata, and has a dashboard connection row reserved for future pairing/address state. The APK can save an HTTPS dashboard API address, exact six-digit pairing code and manually entered certificate SHA-256 fingerprint locally, but this only prepares a later pairing request; it is not pairing and does not permit upload. The full approved fingerprint is stored through secure storage, not SQLite. The APK has a Sync status screen showing pending operation count, pairing preparation and retention safety counts until real pairing/upload code is authorized.
 
 Before real APK sync implementation starts, update the sync UI and networking code to this joint contract: HTTPS port `3443`, full certificate SHA-256 fingerprint pinning, six-digit pairing-code exchange for a hidden device credential, `/sync/status` for empty queues, 100-operation and 1 MiB batch limits, 30-second timeout, at most three foreground retries, exact acknowledgement handling and seven-day cleanup only after safe acknowledgement.
+

@@ -75,7 +75,7 @@
 - Updated Sync Status to show address saved, pairing code saved, ready to request pairing, dashboard paired and ready to sync as separate checks.
 - Updated the dashboard setup screen to save a local dashboard API address plus a pairing code. This prepares a later dashboard pairing request only; it does not contact the dashboard, upload data, acknowledge operations or clean up records. P2.1 later tightened this preparation field to exactly six digits.
 - Validation completed on the development computer: full Flutter test suite passed with `--concurrency=1`, and debug APK 0.9.1+16 built successfully.
-- Phone install over existing test data succeeded on device `ORCE49UWDQVGRC49`. User phone walkthrough passed: Dashboard pairing accepted a local dashboard address and pairing code, Sync Status showed address/code prepared, and real sync remained unavailable because the Windows dashboard is not built yet.
+- Phone install over existing test data succeeded on device `ORCE49UWDQVGRC49`. User phone walkthrough passed: Dashboard pairing accepted a local dashboard address and pairing code, Sync Status showed address/code prepared, and real sync remained unavailable. Later LAN reconciliation found an Outreach dashboard foundation exists, but this APK version still had no live pairing, upload, acknowledgement or cleanup.
 
 ## Database encryption implementation (0.9.0+15)
 
@@ -192,7 +192,7 @@ Local Flutter checks completed with NO_PROXY/no_proxy set to localhost,127.0.0.1
 
 ## Remaining foundation work
 
-SQLite schema version 3, repository ownership rules, transactional audit/outbox writes, database summary queries, registration/login and locking are implemented; see 06_local_database.md and 07_accounts_and_lock.md. Database encryption/recovery remain foundation work. Production synchronization is not implemented. The development app must not be used for live outreach.
+SQLite schema version 3, repository ownership rules, transactional audit/outbox writes, database summary queries, registration/login and locking are implemented; see 06_local_database.md and 07_accounts_and_lock.md. Database encryption/recovery remain foundation work. Production synchronization is not active. The development app must not be used for live outreach without explicit pilot approval.
 
 The generated release build still uses debug signing. Configure release signing before pilot distribution; a scaffold debug APK is not a production release.
 
@@ -214,3 +214,4 @@ The generated release build still uses debug signing. Configure release signing 
 - Cold launch: Status: ok, 1848 ms. App-specific Flutter/AndroidRuntime error log returned no entries.
 - Device accessibility hierarchy confirms Create your account, username/password guidance and account actions are on screen. Secure-window protection intentionally blocks screenshots; no screenshot bypass was attempted.
 - No account was created by the agent on the user's phone. Actual registration/unlock walkthrough is ready for the user; automated tests cover those flows on the development computer.
+

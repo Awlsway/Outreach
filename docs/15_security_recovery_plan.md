@@ -47,7 +47,7 @@ Phone migration and user data visibility checks passed for the development APK.
 ## Current limitations
 
 - SQLCipher database opening is implemented and passed migration testing on the user's existing phone test database.
-- Real Windows dashboard sync is not implemented yet.
+- Real dashboard sync is not active in the APK yet.
 - Retention cleanup is not implemented yet.
 - Password recovery is not implemented and should remain suspended for now.
 - Password change is not implemented.
@@ -60,7 +60,7 @@ Phone migration and user data visibility checks passed for the development APK.
 
 Confirmed decision: do not build password recovery, admin unlock, technical data extraction, password bypass or data-assistant recovery code in the APK for the first pilot.
 
-Reason: there is no dashboard yet, and no approved safe recovery design exists. The project prefers losing unsynced phone data over exposing client information to an unauthorized person.
+Reason: live dashboard recovery is not available yet, and no approved safe recovery design exists. The project prefers losing unsynced phone data over exposing client information to an unauthorized person.
 
 Worker guidance should say: if the password is forgotten, unsynced data on that locked phone may be lost. The worker should report the issue before starting again.
 
@@ -90,7 +90,7 @@ Recommended procedure:
 
 1. Worker reports lost phone immediately.
 2. Treat unsynced records on that phone as possibly lost.
-3. When the dashboard exists, data assistant marks that device as lost.
+3. When dashboard device management is enabled, data assistant marks that device as lost.
 4. Do not accept future sync from that device ID unless reviewed.
 5. Review dashboard to see the latest successful sync time for that worker/device.
 
@@ -103,7 +103,7 @@ Recommended procedure:
 1. If the phone can still open the app and the worker can sign in, preserve the data and sync first once real sync exists.
 2. If the worker cannot sign in or the app cannot open, do not attempt technical data extraction under the current plan.
 3. Replace or re-enroll the worker phone if needed, accepting that unsynced records may be lost.
-4. When the dashboard exists, use dashboard last-successful-sync records to identify the possible data gap.
+4. When dashboard sync history is enabled, use dashboard last-successful-sync records to identify the possible data gap.
 
 ### 5. Database encryption
 
@@ -147,7 +147,7 @@ Recommended worker rules:
 
 ### 8. Dashboard-side account/device control
 
-When the Windows dashboard is built, it should support:
+The dashboard recovery workflow should support:
 
 - paired device list
 - device status: active, lost, retired
@@ -196,3 +196,4 @@ Confirmed on 14 September 2026:
 Do not use the APK with real client information.
 
 Do not add password reset, password bypass, technical data extraction, automatic cleanup, or production sync behavior until the related security/recovery decision is approved.
+

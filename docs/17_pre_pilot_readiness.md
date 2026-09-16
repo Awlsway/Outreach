@@ -2,11 +2,11 @@
 
 Status: draft for review, 15 September 2026.
 
-This checklist defines what must be true before the ANSVK Outreach APK is used with real client information. It separates the current Android APK from the future Windows dashboard project so the pilot decision does not accidentally assume sync exists.
+This checklist defines what must be true before the ANSVK Outreach APK is used with real client information. It separates the current Android APK from the Windows LAN Outreach foundation so the pilot decision does not accidentally assume live sync exists.
 
 ## Current APK state
 
-Current Android increment: `0.9.2+17`.
+Current Android increment: `0.9.3+18`.
 
 Current SQLite schema version: `6`.
 
@@ -24,11 +24,11 @@ Implemented and phone-tested on the user's connected device:
 - Today's records list, detail, edit and delete.
 - Local audit/outbox tracking for future sync.
 - Sync Status with pending-operation counts.
-- Future dashboard address and pairing-code preparation.
+- Future dashboard address, pairing-code and certificate-fingerprint preparation.
 - Retention safety status with cleanup disabled.
 - SQLCipher database opening for Android builds.
 
-The APK still has no real Windows dashboard connection. It cannot upload records, receive acknowledgement, mark operations synced, or safely clean old client records.
+The APK still has no active real Windows dashboard connection. It cannot upload records, receive acknowledgement, mark operations synced, or safely clean old client records.
 
 ## Pilot decision options
 
@@ -38,14 +38,14 @@ Use the APK only with synthetic or dummy records. This is the current safest sta
 
 This option is ready now.
 
-### Option B: Local-only field pilot before dashboard
+### Option B: Local-only field pilot before live dashboard sync
 
-Use the APK on worker phones for real outreach entry before the dashboard exists.
+Use the APK on worker phones for real outreach entry before live dashboard sync is enabled and verified.
 
 This is possible only if the project accepts these limits in writing:
 
 - Records remain only on each worker's phone.
-- There is no office backup or full-history desktop copy yet.
+- There is no verified office backup or full-history desktop copy from those phones yet.
 - If a phone is lost, damaged, reset, uninstalled, or the worker forgets the password, unsynced records may be lost.
 - Old client records will not be deleted automatically because dashboard acknowledgement does not exist.
 - Data assistant review/reporting across workers cannot happen yet.
@@ -56,14 +56,14 @@ This option needs explicit project acceptance before use.
 
 Use the APK with real client information and office desktop history.
 
-This option is not ready because the Windows dashboard is not built yet.
+This option is not ready because live phone-to-dashboard pairing, upload, acknowledgement and cleanup are not implemented and verified end to end yet.
 
 ## Required checks before any real-client pilot
 
 | Area | Required check | Status |
 | --- | --- | --- |
-| Release build | Create a release-signed APK, not a debug-signed APK | Release APK `0.9.2+17` built and manually installed on one phone |
-| App version | Confirm version shown/recorded for handover | Release artifact `0.9.2+17` recorded in 18_release_signing_plan.md |
+| Release build | Create a release-signed APK, not a debug-signed APK | Release APK `0.9.3+18` built and manually installed on one phone |
+| App version | Confirm version shown/recorded for handover | Release artifact `0.9.3+18` recorded in 05_build_status.md |
 | Worker phones | Test install/update on every pilot phone model | One release APK phone test passed; all worker phones still needed |
 | Device passcode | Confirm every worker phone has a device screen lock | Policy agreed; field verification needed |
 | Worker accounts | Confirm each worker creates their own account on their own phone | Policy agreed; field verification needed |
@@ -72,9 +72,9 @@ This option is not ready because the Windows dashboard is not built yet.
 | Offline entry | Confirm hotspot/client/daily/today flows with worker training data | Core flows tested; worker training needed |
 | Privacy | Confirm no cross-worker access through normal app UI | Automated tests pass; multi-phone pilot check needed |
 | Database protection | Confirm SQLCipher migration/fresh install on pilot phones | One development phone passed; pilot phones needed |
-| Sync | Confirm real dashboard pairing/upload/acknowledgement | Not implemented |
+| Sync | Confirm real dashboard pairing/upload/acknowledgement | Certificate check and offline pairing prep implemented; live pairing/upload/acknowledgement not active |
 | Retention cleanup | Confirm cleanup only after dashboard acknowledgement | Status-only implemented; cleanup disabled |
-| Reporting | Confirm office review/reporting workflow | Dashboard scope; not implemented |
+| Reporting | Confirm office review/reporting workflow | LAN Outreach foundation exists; office workflow not verified with phone data |
 
 ## Minimum phone test script before handover
 
@@ -114,4 +114,5 @@ A future dashboard developer must read these files before building the desktop s
 
 Keep the current APK in development/pilot-preparation status until release signing and the all-phone dummy-data test are complete. The release-signing setup plan is documented in 18_release_signing_plan.md.
 
-Do not use it for real client information as a full program system until the Windows dashboard can receive data and acknowledge exact operations. If the project chooses a local-only pilot before the dashboard, document that decision separately and train workers on the data-loss limits before deployment.
+Do not use it for real client information as a full program system until the Windows dashboard can receive data and acknowledge exact operations from the APK. If the project chooses a local-only pilot before live sync, document that decision separately and train workers on the data-loss limits before deployment.
+

@@ -1,6 +1,6 @@
 # ANSVK Outreach worker guide
 
-This guide explains the current Android APK behavior for outreach workers and the data assistant. The app works offline on the phone. Real dashboard sync is not available yet.
+This guide explains the current Android APK behavior for outreach workers and the data assistant. The app works offline on the phone. Real dashboard sync is still unavailable in the APK.
 
 ## First use and sign in
 
@@ -88,7 +88,7 @@ Delete is a soft delete. The record disappears from active views and summary, bu
 
 Open **Sync status** from the home screen.
 
-This screen is for checking pending changes only. Real sync is not active yet because the Windows dashboard is not built and paired.
+This screen is for checking pending changes and future dashboard setup only. Real sync is not active yet because this APK has not completed controlled live pairing, upload, acknowledgement or cleanup.
 
 The screen shows:
 
@@ -105,7 +105,7 @@ The screen shows:
 
 **Ready to sync** remains **No** in this version.
 
-The **Retention safety** section shows whether old client records exist on the phone. Cleanup remains disabled because the Windows dashboard cannot acknowledge records yet.
+The **Retention safety** section shows whether old client records exist on the phone. Cleanup remains disabled until a verified dashboard acknowledgement flow exists.
 
 The **Pending changes** screen shows operation type, action, revision and time. It does not show full client payload details.
 
@@ -122,8 +122,9 @@ The APK code can prepare the future pairing request format and understand future
 ## Important limitations
 
 - Do not use this development build for real client information yet.
-- Real Windows dashboard sync is not implemented.
+- Real dashboard sync is not active in this APK.
 - The app will not remove old client records until real dashboard acknowledgement exists.
 - Password recovery is not implemented.
 - Database encryption is enabled in Android builds, but recovery remains suspended for the first pilot.
 - Uninstalling the app or clearing app data can remove unsynced local records.
+
