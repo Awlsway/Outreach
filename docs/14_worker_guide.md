@@ -117,7 +117,7 @@ The **Check certificate** button can test whether the dashboard HTTPS certificat
 
 Saving pairing information stores the address, six-digit code and approved fingerprint for later setup only. It does not pair the phone, upload data, acknowledge data or delete records.
 
-The APK code can prepare the future pairing request format and understand future pairing responses internally, but there is still no worker action that sends it to a dashboard or marks the phone paired.
+The APK now has a controlled **Pair with dashboard** action that can send the pairing request only through the certificate-pinned pairing service. Pairing stores the hidden device credential and marks the phone paired after a verified success. It still does not upload records, acknowledge records, enable Ready to sync, or delete old client data.
 
 ## Important limitations
 
@@ -127,4 +127,3 @@ The APK code can prepare the future pairing request format and understand future
 - Password recovery is not implemented.
 - Database encryption is enabled in Android builds, but recovery remains suspended for the first pilot.
 - Uninstalling the app or clearing app data can remove unsynced local records.
-

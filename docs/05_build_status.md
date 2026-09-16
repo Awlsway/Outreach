@@ -1,3 +1,11 @@
+## S2 pairing UI wiring
+
+- Added a controlled **Pair with dashboard** action to the Dashboard Pairing screen. The action saves the entered HTTPS `/api/v1` address, six-digit pairing code and approved certificate fingerprint, then uses the certificate-pinned pairing service.
+- The pairing action returns to Sync Status after a verified success so the worker can see the dashboard is `Paired`. **Ready to sync** remains `No` because upload, acknowledgement and cleanup are still disabled.
+- Added test injection for the pairing transport and an explicit in-memory device-credential store for widget tests. Production still uses secure storage for the hidden dashboard device credential.
+- The saved pairing code is not shown again when reopening the pairing screen. The worker must re-enter the code before pairing if the screen was reopened.
+- This chunk does not install on phone, connect to office LAN, upload records, acknowledge operations, enable sync, or clean retention data.
+- Validation completed on the development computer: focused UI test passed with `flutter test test\hotspot_widget_test.dart --concurrency=1`; full Flutter tests passed with `flutter test --concurrency=1`; full Dart analysis returned no issues.
 ## S2 pairing engine core
 
 - Added `DashboardPairingService` for the future live pairing action. It builds the v1 pairing request from the existing APK app identity, current worker profile and saved six-digit pairing code.

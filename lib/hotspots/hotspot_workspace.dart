@@ -4,6 +4,9 @@ import '../database/outreach_repository.dart' as data;
 import '../encounters/encounter_form.dart';
 import '../sync/certificate_fingerprint_store.dart';
 import '../sync/dashboard_certificate_checker.dart';
+import '../sync/dashboard_pairing_service.dart';
+import '../sync/device_credential_store.dart';
+import '../sync/pairing_request_builder.dart';
 import 'location_service.dart';
 import 'new_hotspot_form.dart';
 
@@ -31,11 +34,15 @@ class HotspotWorkspace extends StatefulWidget {
     required this.location,
     this.certificateFingerprintStore,
     this.dashboardCertificateChecker,
+    this.pairingTransport,
+    this.deviceCredentialStore,
   });
   final SessionController session;
   final HotspotLocationService location;
   final CertificateFingerprintStore? certificateFingerprintStore;
   final DashboardCertificateChecker? dashboardCertificateChecker;
+  final PairingTransport? pairingTransport;
+  final DeviceCredentialStore? deviceCredentialStore;
   @override
   State<HotspotWorkspace> createState() => _HotspotWorkspaceState();
 }
@@ -53,6 +60,8 @@ class _HotspotWorkspaceState extends State<HotspotWorkspace> {
       widget.certificateFingerprintStore ?? CertificateFingerprintStore();
   late final DashboardCertificateChecker _dashboardCertificateChecker =
       widget.dashboardCertificateChecker ?? DashboardCertificateChecker();
+  late final DeviceCredentialStore _deviceCredentialStore =
+      widget.deviceCredentialStore ?? DeviceCredentialStore();
   _Page _page = _Page.home;
   List<data.Row> _rows = [];
   data.Row? _selected;
@@ -68,6 +77,7 @@ class _HotspotWorkspaceState extends State<HotspotWorkspace> {
   bool _pendingChangesLoading = false;
   bool _savingDashboardAddress = false;
   bool _checkingDashboardCertificate = false;
+  bool _pairingDashboard = false;
   bool _deletingRecord = false;
   bool _saved = false;
   String? _error;
@@ -78,6 +88,8 @@ class _HotspotWorkspaceState extends State<HotspotWorkspace> {
   String? _dashboardAddressError;
   String? _dashboardPairingError;
   String? _certificateFingerprintError;
+  String? _dashboardPairingStatus;
+  bool _dashboardPairingSucceeded = false;
   DashboardCertificateCheckResult? _certificateCheckResult;
   int _query = 0;
 
@@ -227,6 +239,8 @@ class _HotspotWorkspaceState extends State<HotspotWorkspace> {
       _dashboardPairingError = null;
       _certificateFingerprintError = null;
       _certificateCheckResult = null;
+      _dashboardPairingStatus = null;
+      _dashboardPairingSucceeded = false;
     });
   }
 
@@ -253,8 +267,11 @@ class _HotspotWorkspaceState extends State<HotspotWorkspace> {
     }
   }
 
-  Future<void> _saveDashboardPairing() async {
-    if (_savingDashboardAddress || _checkingDashboardCertificate) return;
+  bool get _dashboardSetupBusy =>
+      _savingDashboardAddress || _checkingDashboardCertificate || _pairingDashboard;
+
+  Future<bool> _saveDashboardPairingPreparation({bool stayOnPage = false}) async {
+    if (_dashboardSetupBusy) return false;
     widget.session.activity();
     final value = _dashboardUrl.text.trim();
     final code = _pairingCode.text.trim();
@@ -268,8 +285,10 @@ class _HotspotWorkspaceState extends State<HotspotWorkspace> {
             'Enter the HTTPS device API address ending with /api/v1.';
         _dashboardPairingError = null;
         _certificateFingerprintError = null;
+        _dashboardPairingStatus = null;
+        _dashboardPairingSucceeded = false;
       });
-      return;
+      return false;
     }
     if (!RegExp(r'^\d{6}$').hasMatch(code)) {
       setState(() {
@@ -277,8 +296,10 @@ class _HotspotWorkspaceState extends State<HotspotWorkspace> {
         _dashboardPairingError =
             'Enter the exact 6-digit pairing code from the dashboard.';
         _certificateFingerprintError = null;
+        _dashboardPairingStatus = null;
+        _dashboardPairingSucceeded = false;
       });
-      return;
+      return false;
     }
     final fingerprint = _certificateFingerprint.text;
     if (!CertificateFingerprintStore.isValidSha256(fingerprint)) {
@@ -287,33 +308,41 @@ class _HotspotWorkspaceState extends State<HotspotWorkspace> {
         _dashboardPairingError = null;
         _certificateFingerprintError =
             'Enter the full SHA-256 certificate fingerprint.';
+        _dashboardPairingStatus = null;
+        _dashboardPairingSucceeded = false;
       });
-      return;
+      return false;
     }
     setState(() {
       _savingDashboardAddress = true;
       _dashboardAddressError = null;
       _dashboardPairingError = null;
       _certificateFingerprintError = null;
+      _dashboardPairingStatus = null;
+      _dashboardPairingSucceeded = false;
     });
     try {
       final normalized = CertificateFingerprintStore.normalize(fingerprint);
       await _certificateFingerprintStore.write(normalized);
       await _repository.saveDashboardPairing(value, code);
-      if (!mounted) return;
-      _savingDashboardAddress = false;
-      _openSyncStatus();
+      if (!mounted) return false;
+      setState(() => _savingDashboardAddress = false);
+      if (!stayOnPage) _openSyncStatus();
+      return true;
     } catch (_) {
-      if (!mounted) return;
+      if (!mounted) return false;
       setState(() {
         _savingDashboardAddress = false;
         _dashboardAddressError = 'Could not save pairing information.';
       });
+      return false;
     }
   }
-
+  Future<void> _saveDashboardPairing() async {
+    await _saveDashboardPairingPreparation();
+  }
   Future<void> _clearDashboardAddress() async {
-    if (_savingDashboardAddress || _checkingDashboardCertificate) return;
+    if (_dashboardSetupBusy) return;
     widget.session.activity();
     setState(() {
       _savingDashboardAddress = true;
@@ -321,6 +350,8 @@ class _HotspotWorkspaceState extends State<HotspotWorkspace> {
       _dashboardPairingError = null;
       _certificateFingerprintError = null;
       _certificateCheckResult = null;
+      _dashboardPairingStatus = null;
+      _dashboardPairingSucceeded = false;
     });
     try {
       await _repository.clearDashboardAddress();
@@ -341,13 +372,15 @@ class _HotspotWorkspaceState extends State<HotspotWorkspace> {
   }
 
   Future<void> _checkDashboardCertificate() async {
-    if (_savingDashboardAddress || _checkingDashboardCertificate) return;
+    if (_dashboardSetupBusy) return;
     widget.session.activity();
     setState(() {
       _checkingDashboardCertificate = true;
       _dashboardAddressError = null;
       _certificateFingerprintError = null;
       _certificateCheckResult = null;
+      _dashboardPairingStatus = null;
+      _dashboardPairingSucceeded = false;
     });
     final result = await _dashboardCertificateChecker.check(
       dashboardUrl: _dashboardUrl.text,
@@ -366,6 +399,43 @@ class _HotspotWorkspaceState extends State<HotspotWorkspace> {
     });
   }
 
+  Future<void> _pairWithDashboard() async {
+    if (_dashboardSetupBusy) return;
+    final prepared = await _saveDashboardPairingPreparation(stayOnPage: true);
+    if (!prepared || !mounted) return;
+    setState(() {
+      _pairingDashboard = true;
+      _dashboardPairingStatus = null;
+      _dashboardPairingSucceeded = false;
+    });
+    final fingerprint = await _certificateFingerprintStore.read();
+    if (fingerprint == null) {
+      if (!mounted) return;
+      setState(() {
+        _pairingDashboard = false;
+        _certificateFingerprintError =
+            'Enter the full SHA-256 certificate fingerprint.';
+      });
+      return;
+    }
+    final service = DashboardPairingService(
+      repository: _repository,
+      credentialStore: _deviceCredentialStore,
+      requestBuilder: PairingRequestBuilder(
+        appVersion: '0.9.3+18',
+        clock: DateTime.now,
+      ),
+      transport: widget.pairingTransport,
+    );
+    final result = await service.pair(expectedCertificateFingerprint: fingerprint);
+    if (!mounted) return;
+    setState(() {
+      _pairingDashboard = false;
+      _dashboardPairingStatus = result.message;
+      _dashboardPairingSucceeded = result.paired;
+    });
+    if (result.paired) await _openSyncStatus();
+  }
   Future<void> _deleteSelectedRecord() async {
     final record = _selectedRecord;
     if (_deletingRecord || record == null) return;
@@ -1161,7 +1231,7 @@ class _HotspotWorkspaceState extends State<HotspotWorkspace> {
           ),
           const SizedBox(height: 8),
           const Text(
-            'Save the Windows dashboard HTTPS device API address, six-digit pairing code, and certificate fingerprint. You can also check that the dashboard certificate matches this fingerprint. This prepares the phone only; it does not pair, upload, sync or delete data yet.',
+            'Save the Windows dashboard HTTPS device API address, six-digit pairing code, and certificate fingerprint. Check the certificate first when possible, then pair the phone. Pairing does not upload, sync, acknowledge or delete records.',
           ),
           const SizedBox(height: 20),
           TextField(
@@ -1212,7 +1282,7 @@ class _HotspotWorkspaceState extends State<HotspotWorkspace> {
           OutlinedButton.icon(
             key: const ValueKey('check-dashboard-certificate'),
             onPressed:
-                _savingDashboardAddress || _checkingDashboardCertificate
+                _dashboardSetupBusy
                 ? null
                 : _checkDashboardCertificate,
             icon: const Icon(Icons.fact_check_outlined),
@@ -1233,7 +1303,7 @@ class _HotspotWorkspaceState extends State<HotspotWorkspace> {
           FilledButton.icon(
             key: const ValueKey('save-dashboard-address'),
             onPressed:
-                _savingDashboardAddress || _checkingDashboardCertificate
+                _dashboardSetupBusy
                 ? null
                 : _saveDashboardPairing,
             icon: const Icon(Icons.save_outlined),
@@ -1247,11 +1317,32 @@ class _HotspotWorkspaceState extends State<HotspotWorkspace> {
             ),
           ),
           const SizedBox(height: 12),
+          FilledButton.icon(
+            key: const ValueKey('pair-dashboard'),
+            onPressed: _dashboardSetupBusy ? null : _pairWithDashboard,
+            icon: const Icon(Icons.link_outlined),
+            label: Padding(
+              padding: const EdgeInsets.all(12),
+              child: Text(_pairingDashboard ? 'Pairing...' : 'Pair with dashboard'),
+            ),
+          ),
+          if (_dashboardPairingStatus != null) ...[
+            const SizedBox(height: 12),
+            Card(
+              color: _dashboardPairingSucceeded
+                  ? Theme.of(context).colorScheme.primaryContainer
+                  : Theme.of(context).colorScheme.errorContainer,
+              child: Padding(
+                padding: const EdgeInsets.all(12),
+                child: Text(_dashboardPairingStatus!),
+              ),
+            ),
+          ],
+          const SizedBox(height: 12),
           OutlinedButton.icon(
             key: const ValueKey('clear-dashboard-address'),
             onPressed:
-                _savingDashboardAddress ||
-                    _checkingDashboardCertificate ||
+                _dashboardSetupBusy ||
                     _dashboardUrl.text.isEmpty
                 ? null
                 : _clearDashboardAddress,

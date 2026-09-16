@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'package:ansvk_outreach/app.dart';
 import 'package:ansvk_outreach/auth/auth_service.dart';
 import 'package:ansvk_outreach/auth/session_controller.dart';
@@ -7,6 +8,8 @@ import 'package:ansvk_outreach/database/outreach_repository.dart';
 import 'package:ansvk_outreach/hotspots/location_service.dart';
 import 'package:ansvk_outreach/sync/certificate_fingerprint_store.dart';
 import 'package:ansvk_outreach/sync/dashboard_certificate_checker.dart';
+import 'package:ansvk_outreach/sync/dashboard_pairing_service.dart';
+import 'package:ansvk_outreach/sync/device_credential_store.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
@@ -228,6 +231,8 @@ void main() {
         dashboardCertificateChecker: DashboardCertificateChecker(
           probe: (_, _) async => [1, 2, 3, 4],
         ),
+        pairingTransport: _FakePairingTransport(),
+        deviceCredentialStore: DeviceCredentialStore.memory(),
       ),
     );
     await tap(tester, find.byKey(const ValueKey('open-sync-status')));
@@ -361,7 +366,10 @@ void main() {
       certificateFingerprint,
     );
     await tap(tester, find.byKey(const ValueKey('save-dashboard-address')));
-    await flush(tester);
+    for (var i = 0; i < 10 && find.text('Sync status').evaluate().isEmpty; i++) {
+      await tester.pump(const Duration(milliseconds: 200));
+      await flush(tester);
+    }
     await tester.pumpAndSettle();
     expect(find.text('Sync status'), findsOneWidget);
     await tester.scrollUntilVisible(
@@ -397,6 +405,36 @@ void main() {
       find.byKey(const ValueKey('configure-dashboard-address')),
     );
     expect(find.text('Clear saved pairing'), findsOneWidget);
+    expect(find.text('Pair with dashboard'), findsOneWidget);
+    await tester.enterText(
+      find.byKey(const ValueKey('dashboard-pairing-code')),
+      '012345',
+    );
+    await tap(tester, find.byKey(const ValueKey('pair-dashboard')));
+    for (var i = 0; i < 10 && find.text('Sync status').evaluate().isEmpty; i++) {
+      await tester.pump(const Duration(milliseconds: 200));
+      await flush(tester);
+    }
+    await tester.pumpAndSettle();
+    expect(find.text('Sync status'), findsOneWidget);
+    expect(find.text('Paired'), findsOneWidget);
+    await tester.scrollUntilVisible(
+      find.text('Dashboard paired'),
+      200,
+      scrollable: visibleListScrollable(),
+    );
+    expect(find.text('Dashboard paired'), findsOneWidget);
+    expect(find.text('Ready to sync'), findsOneWidget);
+    expect(find.text('No'), findsWidgets);
+    await tester.scrollUntilVisible(
+      find.text('Set pairing information'),
+      200,
+      scrollable: visibleListScrollable(),
+    );
+    await tap(
+      tester,
+      find.byKey(const ValueKey('configure-dashboard-address')),
+    );
     await tap(tester, find.byKey(const ValueKey('clear-dashboard-address')));
     expect(find.text('Sync status'), findsOneWidget);
     expect(find.text('https://192.168.1.50:3443/api/v1'), findsNothing);
@@ -647,4 +685,34 @@ void main() {
       session.logout();
     },
   );
+}
+
+class _FakePairingTransport implements PairingTransport {
+  final credential = 'credential-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx';
+  late Map<String, Object?> request;
+
+  @override
+  Future<PairingTransportResponse> postJson(
+    Uri uri,
+    String jsonBody, {
+    required String expectedCertificateFingerprint,
+  }) async {
+    expect(uri.toString(), 'https://192.168.1.50:3443/api/v1/pairing/requests');
+    expect(expectedCertificateFingerprint, isNotEmpty);
+    request = jsonDecode(jsonBody) as Map<String, Object?>;
+    return PairingTransportResponse(
+      statusCode: 200,
+      body: jsonEncode({
+        'ok': true,
+        'request_id': 'request-widget-1',
+        'dashboard_id': 'dashboard-widget',
+        'dashboard_name': 'Widget Dashboard',
+        'device_id': request['device_id'],
+        'worker_id': request['worker_id'],
+        'device_credential': credential,
+        'paired_at': '2026-09-17T01:00:00Z',
+        'server_time': '2026-09-17T01:00:01Z',
+      }),
+    );
+  }
 }

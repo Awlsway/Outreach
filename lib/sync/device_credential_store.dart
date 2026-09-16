@@ -7,6 +7,10 @@ class DeviceCredentialStore {
     : _storage = storage,
       _memory = storage == null && !Platform.isAndroid;
 
+  DeviceCredentialStore.memory()
+    : _storage = null,
+      _memory = true;
+
   static const _key = 'ansvk_outreach_dashboard_device_credential';
   static const _defaultStorage = FlutterSecureStorage(
     aOptions: AndroidOptions(

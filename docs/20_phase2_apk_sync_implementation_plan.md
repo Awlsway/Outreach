@@ -111,7 +111,7 @@ P2.3a implementation notes:
 - The signed-in worker helper reads only `worker_id`, `username` and `created_at`; it does not expose password verifier fields.
 - A future device credential store exists in Android secure storage with an in-memory fallback for non-Android tests.
 - P2.3b can parse accepted v1 pairing success and error response shapes offline, rejects success responses for another device or worker, and maps known error codes to worker-facing messages.
-- The first S2 core pairing-engine chunk now adds the certificate-pinned pairing transport and paired-state application behind tests. No UI pairing button, sync enablement, phone install or live LAN connection has been added yet.
+- The S2 core pairing-engine chunk adds the certificate-pinned pairing transport and paired-state application behind tests. The S2 UI wiring chunk adds a controlled **Pair with dashboard** action. Sync upload, acknowledgement, cleanup, phone install and live LAN connection have not been added yet.
 
 ### P2.4 Build sync batch client
 
