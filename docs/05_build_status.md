@@ -13,7 +13,9 @@
 - Bumped the APK version to `0.9.3+18` for a review/test build containing P2.2 certificate checking plus P2.3a/P2.3b offline pairing preparation.
 - Validation completed on the development computer: `flutter analyze --no-pub` passed and full Flutter tests passed with `flutter test --concurrency=1` showing 47/47 tests.
 - Release-signed APK built successfully from the private signing configuration. Output: `build\app\outputs\flutter-apk\app-release.apk`; size 65,965,198 bytes; SHA-256 `413E24677AAAEB4D4EFF50DF29A0755907F28E8DB2D74FEBA5F82451832DD484`.
-- No phone install, LAN pairing, network sync, upload, acknowledgement, cleanup, push or real data was performed for this review build.
+- Phone install over existing test data succeeded on device `ORCE49UWDQVGRC49` with versionName `0.9.3` and versionCode `18`. The app launched with no immediate Flutter/AndroidRuntime crash in the short log check.
+- User phone walkthrough passed: existing data remained usable, Sync Status opened, Dashboard pairing preparation opened, certificate-check action was visible, validation behaved as expected, and real sync remained disabled.
+- No LAN pairing, network sync, upload, acknowledgement, cleanup, push or real data was performed for this review build.
 
 ## P2.3a offline pairing request preparation
 
