@@ -33,6 +33,7 @@ Dashboard and APK developers must read these before any implementation or live t
 - [15_security_recovery_plan.md](15_security_recovery_plan.md)
 - [17_pre_pilot_readiness.md](17_pre_pilot_readiness.md)
 - [19_joint_sync_contract_status.md](19_joint_sync_contract_status.md)
+- [22_s1_certificate_test_runbook.md](22_s1_certificate_test_runbook.md)
 - `D:\LAN\docs\Outreach_LAN_API_Technical_Contract_v1.md`
 - `D:\LAN\docs\Outreach_LAN_Security_Operations_Design.md`
 - `D:\LAN\docs\fixtures\outreach\v1`
@@ -130,3 +131,4 @@ S3 success criteria:
 The next practical approval should be narrow: approve S1 certificate-only test preparation and execution, using a controlled synthetic setup. That approval should name the Windows host, network address, test time window, operator, rollback owner and whether firewall/listener changes are allowed.
 
 Do not approve a broad “enable sync” step yet. Pairing implementation, phone pairing, upload, acknowledgement and cleanup each need their own later gate.
+

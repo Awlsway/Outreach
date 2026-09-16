@@ -23,6 +23,7 @@ Read these documents before designing the dashboard database, screens or API:
 13. [18_release_signing_plan.md](18_release_signing_plan.md) — release signing and installation rules.
 14. [19_joint_sync_contract_status.md](19_joint_sync_contract_status.md) — current joint APK/LAN sync contract status.
 15. [21_controlled_synthetic_connection_plan.md](21_controlled_synthetic_connection_plan.md) — staged certificate-only and synthetic pairing test plan before any live sync work.
+16. [22_s1_certificate_test_runbook.md](22_s1_certificate_test_runbook.md) — fill-in runbook for the first approved certificate-only test window.
 
 Also read the LAN project drafts:
 
