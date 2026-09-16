@@ -182,7 +182,7 @@ void main() {
           repository: repo,
           credentialStore: credentialStore,
           requestBuilder: PairingRequestBuilder(
-            appVersion: '0.9.3+18',
+            appVersion: '0.9.4+19',
             clock: () => DateTime.utc(2026, 9, 16, 12, 1),
           ),
           transport: transport,
@@ -203,7 +203,7 @@ void main() {
       );
       expect(transport.expectedFingerprint, List.filled(64, 'A').join());
       expect(transport.request['pairing_code'], '123456');
-      expect(transport.request['app_version'], '0.9.3+18');
+      expect(transport.request['app_version'], '0.9.4+19');
       expect(await credentialStore.read(), transport.credential);
       final status = await repo.syncStatus();
       expect(status['dashboard_status'], 'Paired');

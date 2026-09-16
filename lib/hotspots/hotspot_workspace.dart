@@ -422,7 +422,7 @@ class _HotspotWorkspaceState extends State<HotspotWorkspace> {
       repository: _repository,
       credentialStore: _deviceCredentialStore,
       requestBuilder: PairingRequestBuilder(
-        appVersion: '0.9.3+18',
+        appVersion: '0.9.4+19',
         clock: DateTime.now,
       ),
       transport: widget.pairingTransport,

@@ -6,7 +6,7 @@ This plan records the next safe path for connecting the ANSVK Outreach APK to th
 
 ## Current evidence
 
-- APK release review build: `0.9.3+18`.
+- APK release review build: `0.9.4+19`.
 - APK release artifact: `build/app/outputs/flutter-apk/app-release.apk`.
 - APK release SHA-256: `413E24677AAAEB4D4EFF50DF29A0755907F28E8DB2D74FEBA5F82451832DD484`.
 - Phone test device: `ORCE49UWDQVGRC49`.

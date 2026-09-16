@@ -34,7 +34,7 @@ The dashboard developer should treat this file as the detailed API contract, and
 
 ## Contract source of truth
 
-This contract is based on the current APK SQLite schema version 6 and repository behavior in app version `0.9.3+18`.
+This contract is based on the current APK SQLite schema version 6 and repository behavior in app version `0.9.4+19`.
 
 The phone stores pending sync data in `audit_operations` and `sync_outbox`.
 
@@ -130,7 +130,7 @@ Example request:
   "worker_id": "65d24c79-807e-45a4-ae3b-719214ed8d3e",
   "username": "worker1",
   "pairing_code": "123456",
-  "app_version": "0.9.3+18",
+  "app_version": "0.9.4+19",
   "requested_at": "2026-09-12T08:35:00Z"
 }
 ```
@@ -204,7 +204,7 @@ Example request:
   "device_id": "8c8df2a3-8f46-4f1f-98e6-a2c7f8cbb801",
   "device_created_at": "2026-09-12T07:00:00Z",
   "worker_id": "65d24c79-807e-45a4-ae3b-719214ed8d3e",
-  "app_version": "0.9.3+18",
+  "app_version": "0.9.4+19",
   "batch_created_at": "2026-09-12T08:40:00Z",
   "operations": [
     {

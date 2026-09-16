@@ -1,3 +1,12 @@
+## APK review build 0.9.4+19
+
+- Bumped the APK version to `0.9.4+19` for a phone review build containing the controlled **Pair with dashboard** UI action.
+- Focused validation completed on the development computer: pairing and hotspot widget tests passed with `flutter test test\pairing_preparation_test.dart test\hotspot_widget_test.dart --concurrency=1`.
+- Release APK built successfully through Gradle after refreshing generated Flutter version metadata in `android\local.properties`. The Flutter wrapper build command hung before starting; direct Gradle build required access to the existing `D:\gradle` cache.
+- Release artifact: `build\app\outputs\flutter-apk\app-release.apk`; size 66,681,502 bytes; SHA-256 `99EC146D5651E9445F6168DFE87FBB4B249F0F33187A5BE1D50F786E58282D2D`.
+- Installed over the existing release app on phone `ORCE49UWDQVGRC49` with app data preserved. Installed package reports `versionName=0.9.4` and `versionCode=19`.
+- Cold launch put `org.ansvk.ansvk_outreach/.MainActivity` in the foreground. A recent log sample showed no AndroidRuntime/FATAL exception for the app.
+- This phone install did not connect to the office LAN dashboard, pair with a real dashboard, upload records, acknowledge operations, enable Ready to sync, or run retention cleanup.
 ## S2 pairing UI wiring
 
 - Added a controlled **Pair with dashboard** action to the Dashboard Pairing screen. The action saves the entered HTTPS `/api/v1` address, six-digit pairing code and approved certificate fingerprint, then uses the certificate-pinned pairing service.
