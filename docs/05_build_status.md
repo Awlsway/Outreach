@@ -8,6 +8,13 @@
 - Validation completed on the development computer: focused pairing preparation tests passed with `flutter test test\pairing_preparation_test.dart --concurrency=1`.
 - No network request, live pairing, credential storage from a response, dashboard state update, pairing-code deletion, sync enablement, release build, phone install, push or real data was performed for this P2.3b chunk.
 
+## APK review build 0.9.3+18
+
+- Bumped the APK version to `0.9.3+18` for a review/test build containing P2.2 certificate checking plus P2.3a/P2.3b offline pairing preparation.
+- Validation completed on the development computer: `flutter analyze --no-pub` passed and full Flutter tests passed with `flutter test --concurrency=1` showing 47/47 tests.
+- Release-signed APK built successfully from the private signing configuration. Output: `build\app\outputs\flutter-apk\app-release.apk`; size 65,965,198 bytes; SHA-256 `413E24677AAAEB4D4EFF50DF29A0755907F28E8DB2D74FEBA5F82451832DD484`.
+- No phone install, LAN pairing, network sync, upload, acknowledgement, cleanup, push or real data was performed for this review build.
+
 ## P2.3a offline pairing request preparation
 
 - Limited P2.3a work was performed after the user's later "proceed" instruction. This is offline preparation only; live P2.3 pairing remains gated on LAN readiness.
