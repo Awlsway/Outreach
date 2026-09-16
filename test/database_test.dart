@@ -80,6 +80,11 @@ void main() {
       expect(identity['device_id'], isA<String>());
       expect((identity['device_id'] as String).length, greaterThan(20));
       expect(DateTime.tryParse(identity['created_at'] as String), isNotNull);
+      final workerProfile = await repo.currentWorkerProfile();
+      expect(workerProfile['worker_id'], worker);
+      expect(workerProfile['username'], 'worker1');
+      expect(workerProfile.keys, isNot(contains('verifier')));
+      expect(workerProfile.keys, isNot(contains('salt')));
       await database.close();
       database = await AppDatabase.open(
         factory: databaseFactoryFfi,

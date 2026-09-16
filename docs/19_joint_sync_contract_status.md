@@ -1,8 +1,8 @@
 # Joint sync contract status
 
-Updated: 15 September 2026.
+Updated: 16 September 2026.
 
-This document records the current joint APK and LAN Dashboard sync contract. It is a planning and handover record only. No real network sync implementation has started in the APK.
+This document records the current joint APK and LAN Dashboard sync contract. It is a planning and handover record. The APK now includes local preparation screens and a certificate fingerprint check, but no real pairing, upload, acknowledgement, cleanup or dashboard sync implementation has started.
 
 ## Current joint draft documents
 
@@ -127,6 +127,6 @@ The dashboard may show Outreach reports in its own Outreach module, but it must 
 
 ## APK implementation boundary
 
-The current APK may keep showing saved HTTPS dashboard address, six-digit pairing-code preparation and certificate fingerprint preparation, but those fields are not real pairing yet.
+The current APK may save an HTTPS dashboard address, six-digit pairing-code preparation and certificate fingerprint preparation. It may also check the live HTTPS certificate fingerprint against the approved value before future pairing/sync. These fields and the check are not real pairing yet.
 
 Before real APK sync implementation starts, the APK sync UI and networking code must follow this joint contract: HTTPS port 3443, certificate fingerprint pinning, pairing-code exchange for a hidden device credential, explicit acknowledgement tracking, retry limits, and safe cleanup only after exact acknowledgement and seven-day retention.

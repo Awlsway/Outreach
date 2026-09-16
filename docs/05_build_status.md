@@ -1,12 +1,39 @@
 # Scaffold build status
 
+## P2.3b offline pairing response parsing
+
+- Added an offline pairing response parser for the accepted v1 success and error response shapes.
+- The parser validates that a success response belongs to this device and this worker before any future code could store the device credential or mark the phone paired.
+- Known pairing error codes are mapped to worker-facing messages for later UI use.
+- Validation completed on the development computer: focused pairing preparation tests passed with `flutter test test\pairing_preparation_test.dart --concurrency=1`.
+- No network request, live pairing, credential storage from a response, dashboard state update, pairing-code deletion, sync enablement, release build, phone install, push or real data was performed for this P2.3b chunk.
+
+## P2.3a offline pairing request preparation
+
+- Limited P2.3a work was performed after the user's later "proceed" instruction. This is offline preparation only; live P2.3 pairing remains gated on LAN readiness.
+- Added a pairing request builder that creates the accepted v1 `POST /api/v1/pairing/requests` JSON shape from app identity, signed-in worker profile, six-digit pairing code, app version and UTC request time.
+- Added a secure-storage device credential holder for the future dashboard credential. The credential is not stored in SQLite and is not connected to any live pairing response yet.
+- Added a repository helper that exposes only signed-in worker profile fields needed for future pairing. It does not expose password verifier material.
+- Validation completed on the development computer: pairing preparation and database tests passed with `flutter test test\pairing_preparation_test.dart test\database_test.dart --concurrency=1`.
+- No network request, dashboard connection, pairing response handling, dashboard state update, pairing-code deletion, sync enablement, release build, phone install, push or real data was performed for this P2.3a chunk.
+
+## P2.2 certificate fingerprint checking
+
+- Limited P2.2 authorization was granted by the user's "can we proceed?" instruction after P2.1 passed. Only HTTPS certificate fingerprint checking was authorized; P2.3-P2.8 remain unauthorized.
+- Added a dashboard certificate checker that opens a TLS connection to the saved HTTPS dashboard address, reads the presented server certificate, computes its SHA-256 fingerprint, and compares it with the worker-entered approved fingerprint.
+- The certificate check does not send a pairing request, sync request, client records, pending operations, acknowledgement state, worker password data, SQLCipher material, or device credential.
+- Added a **Check certificate** action to the Dashboard pairing preparation screen. It reports match, mismatch, invalid address, invalid fingerprint, or unavailable dashboard. Saving pairing info remains separate and real sync remains disabled.
+- The full approved fingerprint remains stored through secure storage from P2.1. SQLite schema remains version 6.
+- Validation completed on the development computer: certificate checker and hotspot widget tests passed with `flutter test test\dashboard_certificate_checker_test.dart test\hotspot_widget_test.dart --concurrency=1`; full Flutter tests passed with `flutter test --concurrency=1`; static analysis passed with `flutter analyze --no-pub`.
+- No phone install, real dashboard connection, pairing, upload, acknowledgement, cleanup, release build or push was performed for this P2.2 chunk.
+
 ## P2.1 sync configuration alignment
 
-- Limited P2.1 authorization was granted after the user's "ok proceed" instruction and LAN PM review. Only sync configuration UI alignment was authorized; P2.2-P2.8 remain unauthorized.
+- Limited P2.1 authorization was granted after the user's "ok proceed" instruction and LAN PM review. Only sync configuration UI alignment was authorized at that time; P2.2 was authorized later as a separate certificate-checking chunk.
 - Updated the Dashboard Pairing preparation screen to require an HTTPS device API address ending in `/api/v1`, such as `https://192.168.1.50:3443/api/v1`.
 - Updated pairing-code validation to exactly six digits and preserve leading zeros.
 - Added manual full certificate SHA-256 fingerprint entry and validation. The full approved fingerprint is stored through secure storage, not SQLite. Sync Status shows only a short fingerprint hint.
-- The screen remains preparation-only. It does not inspect the live certificate, send network requests, pair, upload, acknowledge, retry, enable cleanup, or report sync success.
+- At the P2.1 stage, the screen remained preparation-only and did not inspect the live certificate, send network requests, pair, upload, acknowledge, retry, enable cleanup, or report sync success. P2.2 later added a certificate-only check while keeping pairing, upload, acknowledgement and cleanup disabled.
 - Clearing saved pairing clears the saved address/code and fingerprint trust value without deleting offline records, audit operations, pending outbox rows or app identity.
 - Validation completed on the development computer: focused database and hotspot widget tests passed with `flutter test test\database_test.dart test\hotspot_widget_test.dart --concurrency=1`; full Flutter tests passed with `flutter test --concurrency=1`; static analysis passed with `flutter analyze --no-pub`.
 - A debug APK built successfully but could not update the phone because the phone had a release-signed build installed.

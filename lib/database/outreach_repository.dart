@@ -29,6 +29,16 @@ class OutreachRepository {
   Future<Row> appIdentity() async =>
       (await _db.query('app_identity', limit: 1)).single;
 
+  /// Signed-in worker metadata for future pairing requests. This intentionally
+  /// reads only the worker profile, not password verifier material.
+  Future<Row> currentWorkerProfile() async => (await _db.query(
+    'workers',
+    columns: ['worker_id', 'username', 'created_at'],
+    where: 'worker_id = ?',
+    whereArgs: [_owner],
+    limit: 1,
+  )).single;
+
   String get _owner {
     final value = currentWorkerId();
     if (value == null || value.isEmpty) throw StateError('No worker session');

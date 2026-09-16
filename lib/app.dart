@@ -5,6 +5,7 @@ import 'auth/session_controller.dart';
 import 'hotspots/hotspot_workspace.dart';
 import 'hotspots/location_service.dart';
 import 'sync/certificate_fingerprint_store.dart';
+import 'sync/dashboard_certificate_checker.dart';
 
 class OutreachApp extends StatefulWidget {
   const OutreachApp({
@@ -13,11 +14,13 @@ class OutreachApp extends StatefulWidget {
     required this.hasAccounts,
     this.location,
     this.certificateFingerprintStore,
+    this.dashboardCertificateChecker,
   });
   final SessionController session;
   final bool hasAccounts;
   final HotspotLocationService? location;
   final CertificateFingerprintStore? certificateFingerprintStore;
+  final DashboardCertificateChecker? dashboardCertificateChecker;
 
   @override
   State<OutreachApp> createState() => _OutreachAppState();
@@ -82,6 +85,8 @@ class _OutreachAppState extends State<OutreachApp> with WidgetsBindingObserver {
                       location: _location,
                       certificateFingerprintStore:
                           widget.certificateFingerprintStore,
+                      dashboardCertificateChecker:
+                          widget.dashboardCertificateChecker,
                     ),
                   ),
                 ),

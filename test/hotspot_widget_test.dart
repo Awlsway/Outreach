@@ -5,6 +5,8 @@ import 'package:ansvk_outreach/auth/session_controller.dart';
 import 'package:ansvk_outreach/database/app_database.dart';
 import 'package:ansvk_outreach/database/outreach_repository.dart';
 import 'package:ansvk_outreach/hotspots/location_service.dart';
+import 'package:ansvk_outreach/sync/certificate_fingerprint_store.dart';
+import 'package:ansvk_outreach/sync/dashboard_certificate_checker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
@@ -215,11 +217,17 @@ void main() {
         'client_code': '2026/MY/0077',
       }),
     );
+    final certificateFingerprint = (await tester.runAsync(
+      () => DashboardCertificateChecker.sha256Hex([1, 2, 3, 4]),
+    ))!;
     await tester.pumpWidget(
       OutreachApp(
         session: session,
         hasAccounts: true,
         location: HotspotLocationService(gateway: gps),
+        dashboardCertificateChecker: DashboardCertificateChecker(
+          probe: (_, _) async => [1, 2, 3, 4],
+        ),
       ),
     );
     await tap(tester, find.byKey(const ValueKey('open-sync-status')));
@@ -304,6 +312,7 @@ void main() {
     );
     expect(find.text('Dashboard pairing'), findsOneWidget);
     expect(find.text('Save pairing info only'), findsOneWidget);
+    expect(find.text('Check certificate'), findsOneWidget);
     await tester.enterText(
       find.byKey(const ValueKey('dashboard-address')),
       'http://192.168.1.50:3443/api/v1',
@@ -314,7 +323,7 @@ void main() {
     );
     await tester.enterText(
       find.byKey(const ValueKey('dashboard-certificate-fingerprint')),
-      '00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff',
+      certificateFingerprint,
     );
     await tap(tester, find.byKey(const ValueKey('save-dashboard-address')));
     expect(
@@ -349,7 +358,7 @@ void main() {
     );
     await tester.enterText(
       find.byKey(const ValueKey('dashboard-certificate-fingerprint')),
-      '00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff',
+      certificateFingerprint,
     );
     await tap(tester, find.byKey(const ValueKey('save-dashboard-address')));
     await flush(tester);
@@ -361,7 +370,10 @@ void main() {
       scrollable: visibleListScrollable(),
     );
     expect(find.text('https://192.168.1.50:3443/api/v1'), findsOneWidget);
-    expect(find.text('...8899AABBCCDDEEFF'), findsOneWidget);
+    expect(
+      find.text(CertificateFingerprintStore.hint(certificateFingerprint)),
+      findsOneWidget,
+    );
     expect(find.text('Not configured'), findsOneWidget);
     await tester.scrollUntilVisible(
       find.text('Dashboard address saved'),
@@ -388,7 +400,10 @@ void main() {
     await tap(tester, find.byKey(const ValueKey('clear-dashboard-address')));
     expect(find.text('Sync status'), findsOneWidget);
     expect(find.text('https://192.168.1.50:3443/api/v1'), findsNothing);
-    expect(find.text('...8899AABBCCDDEEFF'), findsNothing);
+    expect(
+      find.text(CertificateFingerprintStore.hint(certificateFingerprint)),
+      findsNothing,
+    );
     session.logout();
   });
 

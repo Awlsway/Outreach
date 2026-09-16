@@ -113,7 +113,11 @@ The **Dashboard pairing** screen can save or clear a future local dashboard API 
 
 `https://192.168.1.50:3443/api/v1`
 
-Saving pairing information does not inspect the certificate, pair the phone, test the connection, upload data, acknowledge data or delete records.
+The **Check certificate** button can test whether the dashboard HTTPS certificate matches the entered SHA-256 fingerprint. This check does not pair the phone, upload data, acknowledge data or delete records.
+
+Saving pairing information stores the address, six-digit code and approved fingerprint for later setup only. It does not pair the phone, upload data, acknowledge data or delete records.
+
+The APK code can prepare the future pairing request format and understand future pairing responses internally, but there is still no worker action that sends it to a dashboard or marks the phone paired.
 
 ## Important limitations
 

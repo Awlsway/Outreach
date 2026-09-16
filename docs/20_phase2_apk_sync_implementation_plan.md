@@ -1,6 +1,6 @@
 # Phase 2 APK sync implementation plan
 
-**Status:** P2.1 authorized and implemented; P2.2-P2.8 are not authorized yet
+**Status:** P2.1, P2.2, P2.3a and P2.3b offline preparation implemented; live P2.3-P2.8 are not authorized yet
 **Date:** 2026-09-16  
 **Owner:** Outreach APK team  
 **Depends on:** LAN Phase 1 ingestion foundation and accepted v1 fixtures
@@ -13,11 +13,15 @@ Phase 2 turns the current APK sync preparation into real pairing, upload, acknow
 
 ## 2. Start gate
 
-Do not start APK runtime sync coding until LAN Phase 1 P1.8 passes and both teams confirm the same fixture checksums.
+Do not start real APK pairing, upload, acknowledgement or cleanup coding until LAN Phase 1 P1.8 passes and both teams confirm the same fixture checksums. P2.1 configuration alignment and P2.2 certificate checking were approved as preparation work before that gate.
 
-P2.1 was separately authorized after the user's "ok proceed" instruction and LAN PM review. That authorization is limited to sync configuration UI alignment, local validation, secure-storage handling for the manually entered certificate fingerprint, and focused tests. It does not authorize network transport, certificate inspection, real pairing, upload, acknowledgement, retry handling, cleanup, deployment, or real data.
+P2.1 was separately authorized after the user's "ok proceed" instruction and LAN PM review. That authorization was limited to sync configuration UI alignment, local validation, secure-storage handling for the manually entered certificate fingerprint, and focused tests. It did not authorize network transport, certificate inspection, real pairing, upload, acknowledgement, retry handling, cleanup, deployment, or real data.
 
-Required LAN evidence before APK implementation starts:
+P2.2 was then separately authorized by the user's "can we proceed?" instruction. That authorization is limited to a local HTTPS certificate fingerprint check before future pairing/sync. It does not authorize a real pairing request, upload, acknowledgement, retry handling, cleanup, dashboard implementation, deployment, or real data.
+
+P2.3a was authorized by the user's later "proceed" instruction as offline preparation only. It may build and test the future pairing request JSON shape and secure-storage holder for a future device credential. P2.3b then added offline parsing and validation for the accepted pairing success and error response shapes. These chunks must not send a pairing request, accept a pairing response as real, mark the phone paired, delete the saved pairing code, enable sync, build a release APK, install on a phone, or use real data.
+
+Required LAN evidence before real APK pairing/upload implementation starts:
 
 - HTTPS device API running on port `3443`.
 - Accepted v1 fixture suite passing on LAN.
@@ -61,7 +65,7 @@ Implementation notes:
 
 ### P2.2 Certificate fingerprint pinning
 
-Status: not authorized.
+Status: implemented as a certificate-checking preparation change.
 
 Purpose: prevent the APK from sending pairing or sync data to an untrusted dashboard.
 
@@ -69,19 +73,21 @@ Tasks:
 
 - Fetch and inspect the server certificate before any pairing or sync body is sent.
 - Compare the full SHA-256 fingerprint with the user-approved value.
-- Store the approved fingerprint in Android secure storage.
-- Block unexpected certificate changes with a clear message.
-- Support the planned rotation state where two fingerprints are temporarily approved.
+- Keep the approved fingerprint in Android secure storage from P2.1.
+- Show clear match, mismatch, invalid address, invalid fingerprint and unavailable messages.
+- Leave planned two-fingerprint certificate rotation for the later real pairing/sync phase.
 
 Exit criteria:
 
-- `untrusted_dashboard_certificate`, `dashboard_certificate_changed`, and `certificate_rotation_required` fixture cases pass.
-- APK never sends pairing or sync body before certificate trust is established.
+- The APK can perform a TLS certificate check without sending pairing or sync bodies.
+- Matching and mismatching fingerprints are covered by local tests with fake certificate bytes.
+- Invalid address, invalid fingerprint and unreachable-dashboard cases are covered by local tests.
 - No certificate fingerprint or key material is written into SQLite audit payloads.
+- Rotation fixtures remain deferred until real pairing/sync fixtures are implemented.
 
 ### P2.3 Pairing request and credential storage
 
-Status: not authorized.
+Status: live pairing is not authorized; P2.3a offline request-building and credential-storage preparation is implemented; P2.3b offline response parsing is implemented.
 
 Purpose: pair the phone once and receive the hidden device credential.
 
@@ -98,6 +104,14 @@ Exit criteria:
 - Pairing success and pairing-error fixtures pass.
 - Device credential is never displayed, logged, stored in SQLite or included in audit payloads.
 - The APK can restart and remain paired without asking for the pairing code again.
+
+P2.3a implementation notes:
+
+- A local request builder can produce the accepted v1 pairing request JSON shape from app identity, signed-in worker profile, six-digit pairing code, app version and UTC request time.
+- The signed-in worker helper reads only `worker_id`, `username` and `created_at`; it does not expose password verifier fields.
+- A future device credential store exists in Android secure storage with an in-memory fallback for non-Android tests.
+- P2.3b can parse accepted v1 pairing success and error response shapes offline, rejects success responses for another device or worker, and maps known error codes to worker-facing messages.
+- No network transport, dashboard state update, pairing-code deletion, UI pairing button, sync enablement or phone install was added.
 
 ### P2.4 Build sync batch client
 
@@ -208,13 +222,13 @@ The LAN Phase 1 sequence is compatible with the APK architecture.
 
 No contract mismatch was found. The ordering is correct because LAN first proves SQLite packaging, creates the isolated HTTPS server, adds durable storage, implements pairing/authentication, then sync processing, status, backups and final fixture verification. The APK should not implement real pairing/upload until that foundation is ready.
 
-The only APK dependency to watch is certificate onboarding. APK Phase 2 needs the LAN dashboard to display the device API address and full certificate SHA-256 fingerprint before P2.2 and P2.3 can be tested on a phone.
+The APK-side certificate checking code now exists, but real phone testing still needs the LAN dashboard to expose an HTTPS device API address and full certificate SHA-256 fingerprint. P2.3 real pairing still depends on that LAN foundation.
 
 ## 5. Runtime implementation boundary
 
-This document does not authorize runtime sync code. Until Phase 2 is separately authorized:
+This document authorizes only P2.1 and P2.2 preparation work. Until later Phase 2 chunks are separately authorized:
 
-- the APK must not send real network sync requests;
+- the APK may perform the P2.2 TLS certificate check only; it must not send pairing or sync request bodies;
 - the APK must not simulate successful sync;
 - the APK must not mark operations acknowledged;
 - the APK must not enable automatic retention cleanup;
