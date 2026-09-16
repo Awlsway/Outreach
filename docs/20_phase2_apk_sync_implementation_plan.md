@@ -111,7 +111,7 @@ P2.3a implementation notes:
 - The signed-in worker helper reads only `worker_id`, `username` and `created_at`; it does not expose password verifier fields.
 - A future device credential store exists in Android secure storage with an in-memory fallback for non-Android tests.
 - P2.3b can parse accepted v1 pairing success and error response shapes offline, rejects success responses for another device or worker, and maps known error codes to worker-facing messages.
-- No network transport, dashboard state update, pairing-code deletion, UI pairing button, sync enablement or phone install was added.
+- The first S2 core pairing-engine chunk now adds the certificate-pinned pairing transport and paired-state application behind tests. No UI pairing button, sync enablement, phone install or live LAN connection has been added yet.
 
 ### P2.4 Build sync batch client
 
@@ -222,7 +222,7 @@ The LAN Phase 1 sequence is compatible with the APK architecture.
 
 No contract mismatch was found. The ordering is correct because LAN first proves SQLite packaging, creates the isolated HTTPS server, adds durable storage, implements pairing/authentication, then sync processing, status, backups and final fixture verification. The APK should not implement real pairing/upload until that foundation is ready.
 
-The APK-side certificate checking code now exists, but real phone testing still needs the LAN dashboard to expose an HTTPS device API address and full certificate SHA-256 fingerprint. P2.3 real pairing still depends on that LAN foundation.
+The APK-side certificate checking code now exists, but real phone testing still needs the LAN dashboard to expose an HTTPS device API address and full certificate SHA-256 fingerprint. P2.3 UI wiring and live pairing review still depend on an approved LAN/S1 test window and a separate review build.
 
 ## 5. Runtime implementation boundary
 

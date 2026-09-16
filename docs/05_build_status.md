@@ -1,3 +1,11 @@
+## S2 pairing engine core
+
+- Added `DashboardPairingService` for the future live pairing action. It builds the v1 pairing request from the existing APK app identity, current worker profile and saved six-digit pairing code.
+- Added a certificate-pinned HTTPS pairing transport. The transport verifies the server certificate SHA-256 fingerprint on the same connection before sending the pairing request, so a separate earlier certificate check is not treated as enough trust by itself.
+- Added repository support to apply only a verified pairing success: the hidden device credential is stored in secure storage, the dashboard row is marked `Paired`, and the pairing code is cleared only after the credential and paired state are safely saved.
+- Safe failure behavior is covered: rejected codes, certificate mismatch/blocked transport and mismatched device responses do not store credentials, do not mark the dashboard paired, and keep the pairing code available for retry.
+- This chunk does not add a UI pairing button, phone install, office LAN connection, sync upload, operation acknowledgement, retention cleanup or real data handling.
+- Validation completed on the development computer: focused pairing tests passed with `flutter test test\pairing_preparation_test.dart --concurrency=1`; full Flutter tests passed with `flutter test --concurrency=1`; focused Dart analysis of the changed files returned no issues.
 # Scaffold build status
 
 ## P2.3b offline pairing response parsing
@@ -214,4 +222,3 @@ The generated release build still uses debug signing. Configure release signing 
 - Cold launch: Status: ok, 1848 ms. App-specific Flutter/AndroidRuntime error log returned no entries.
 - Device accessibility hierarchy confirms Create your account, username/password guidance and account actions are on screen. Secure-window protection intentionally blocks screenshots; no screenshot bypass was attempted.
 - No account was created by the agent on the user's phone. Actual registration/unlock walkthrough is ready for the user; automated tests cover those flows on the development computer.
-

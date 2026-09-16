@@ -5,6 +5,7 @@ import 'package:uuid/uuid.dart';
 
 import 'app_database.dart';
 import 'schema.dart';
+import '../sync/pairing_response.dart';
 
 typedef Row = Map<String, Object?>;
 
@@ -448,6 +449,27 @@ class OutreachRepository {
       'paired_at': null,
       'updated_at': stamp,
     }, where: 'singleton_id = 1');
+  }
+
+  Future<Row> dashboardPairingPreparation() async => (await _db.query(
+    'dashboard_connection',
+    limit: 1,
+  )).single;
+
+  Future<void> applyDashboardPairing(PairingSuccess success) async {
+    final stamp = _clock().toUtc().toIso8601String();
+    final updated = await _db.update('dashboard_connection', {
+      'status': 'Paired',
+      'dashboard_id': success.dashboardId,
+      'dashboard_name': success.dashboardName,
+      'paired_at': success.pairedAt.toUtc().toIso8601String(),
+      'pairing_code': null,
+      'pairing_prepared_at': null,
+      'updated_at': stamp,
+    }, where: 'singleton_id = 1 AND dashboard_url IS NOT NULL');
+    if (updated != 1) {
+      throw StateError('Dashboard pairing information is not prepared.');
+    }
   }
 
   Future<void> clearDashboardAddress() async {
