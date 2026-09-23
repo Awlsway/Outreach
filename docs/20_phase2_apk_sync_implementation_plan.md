@@ -1,11 +1,31 @@
+> Historical development record: manual pairing UI has been removed. Current onboarding is QR-only; see `36_qr_pairing_v1.md` and `37_manual_pairing_cleanup.md`. Retained steps below are not current worker instructions.
+
 # Phase 2 APK sync implementation plan
 
-**Status:** P2.1, P2.2, P2.3a and P2.3b offline preparation implemented; live P2.3-P2.8 are not authorized yet
+**Status:** Synthetic pairing/restart and P2.4 local preparation passed; P2.5a receipt validation and P2.5b local SQLite application implemented and tested offline. Live upload and retention remain disabled.
 **Date:** 2026-09-16  
 **Owner:** Outreach APK team  
 **Depends on:** LAN Phase 1 ingestion foundation and accepted v1 fixtures
 
 ## 1. Phase goal
+
+U2 local review (2026-09-17): no-send first-batch operation manifest/UI implemented and tested; 13 focused manifest/workspace tests passed, focused analysis clean. Synthetic classification remains manual/unverified, and future upload must bind to an exact freshly reviewed batch. No build/install or live sending enabled. See `30_no_send_batch_review.md`.
+
+U1 review closeout (2026-09-17): LAN-reported actual loopback/auth/storage/backup integration evidence reviewed, tool hashes and 16 fixtures independently matched, 10 local guard tests passed. Backend successor remains loopback-only. Next proposed U2 is phone review UI/dry-run manifest without live sending; APK-to-harness end-to-end and phone-window gates remain. See `29_controlled_upload_test_plan.md`.
+
+Controlled upload planning (2026-09-17): drafted laptop-only integration and later phone test stages; LAN PM review of the successor isolated harness and enrollment evidence requested. Review pending, no live test actions. See `29_controlled_upload_test_plan.md`.
+
+Configured sync integration (2026-09-17): composed pinned transport/status validation with the manual runner and worker/configuration/trust/credential guards. Nineteen focused integration/regression tests passed and focused analysis is clean. Phone UI remains disconnected. Next is a controlled synthetic upload-test plan coordinated with LAN PM; the existing pairing-only harness cannot accept sync routes. See `28_configured_manual_sync.md`.
+
+Local HTTPS/status follow-up (2026-09-17): concrete loopback TLS and status identity-validation tests completed, with 12 focused tests passing and clean focused analysis. Ephemeral synthetic certificates only. Runner/configuration/session integration remains pending; no live phone uploads or cleanup enabled. See `27_secure_sync_transport.md`.
+
+Secure transport preparation (2026-09-17): added upload/status HTTPS transport, certificate pinning before credentials/payloads, Bearer credential storage access, deadline and response bounds. Fifteen focused injected-connection/runner/SQLite tests passed. Concrete TLS integration, status identity validation and runner/UI integration remain pending; live phone uploading is disabled. See `27_secure_sync_transport.md`.
+
+Manual orchestration preparation (2026-09-17): implemented sequential uploads through an injected fake transport, exact receipt application and partial/failure/session/concurrency stops. Nine focused runner/SQLite tests passed. No concrete network transport, UI wiring, authenticated empty-queue status check, retries, whole-sync completion or cleanup is enabled. See `26_manual_sync_orchestration.md`.
+
+P2.5b (2026-09-17): user authorized local SQLite receipt application. Implemented exact accepted-operation marking in one transaction; 38 focused sync/database tests passed. This is tested with in-memory synthetic databases and is not connected to phone UI or network transport. No whole-sync success or retention is enabled.
+
+Latest authorized chunk (2026-09-17): P2.5a validates synthetic receipts offline against exact prepared batches. All 24 focused acknowledgement/batch tests passed and focused analysis is clean. It does not apply receipts to SQLite or send requests. See `25_offline_acknowledgement_validation.md`. Earlier gate notes below describe the original rollout; the recorded synthetic pairing and local preparation authorizations remain limited to their completed chunks.
 
 Implement real manual APK synchronization against the LAN Dashboard HTTPS device API after the LAN Phase 1 ingestion foundation passes its final contract, regression and packaging gate.
 
@@ -115,7 +135,7 @@ P2.3a implementation notes:
 
 ### P2.4 Build sync batch client
 
-Status: not authorized.
+Status: P2.4a offline request/batch preparation and P2.4b local UI action authorized by the owner's later proceed instructions and completed. Phone review and network upload remain later chunks. See [24_offline_sync_batch_preparation.md](24_offline_sync_batch_preparation.md).
 
 Purpose: send pending local audit operations exactly as the contract requires.
 

@@ -1,5 +1,157 @@
+## QR-only manual interface cleanup
+
+- Removed manual address/code/fingerprint form and save/check/pair/clear controls on `codex/qr-pairing-apk`. Kept reusable security, pairing, database and sync services. New enrollment awaits the QR scanner; existing connection data is unchanged.
+- 27 focused UI/pairing/QR tests passed; analysis clean. Local source checkpoint saved; no commit, push, phone installation or LAN edit. See `37_manual_pairing_cleanup.md`.
+
+## One-phone synthetic test APK installed
+
+- Corrected artifact installed after USB reconnect: exact checksum/native flag verified, signed0.9.9+24 update succeeded and launched. Records preserved by update; no uninstall/storage clearing. Owner private export is next. See `35_one_phone_manual_test_action.md` for final checksum and exact status.
+
+- Signed0.9.9+24 installed as an update and launched. Test-only frozen review export/manual one-batch action enabled; ordinary builds remain disabled. 12 focused default/export checks and one enabled-export check passed; analysis clean. LAN private driver reports nine tests/lint passed and is ready for exact private review/explicit approval.
+- Await phone prepare/private USB export to obtain original identity; no phone upload, phone-facing listener or firewall change. See `35_one_phone_manual_test_action.md`.
+
+## Actual APK/restricted successor integration
+
+- Both actual loopback end-to-end scenarios passed. Restricted mode rejects preapproval/changed bytes/later batch, accepts exact frozen reviewed creates and identical replay, preserves unaccepted revisions, and verifies exact backend operation/payload matches and daily backup. U1 regression remains passed; focused analysis clean.
+- No phone build/install/window/firewall/upload changes. Private manifest handoff/launch driver and appropriate test APK remain preparation work. See `34_restricted_dashboard_apk_integration.md`.
+
+## One-phone restricted dashboard implementation
+
+- LAN reports separate successor local implementation/tests complete (4 files/13 tests + lint). Independently reviewed admission/source/auth/hash/backup/expiry checks and verified six hashes; 13 local guard/regression tests passed. Actual APK-to-successor test remains next. No phone-facing driver/window enabled. See `33_one_phone_test_preparation.md`.
+
+- Owner authorized bounded separate successor implementation/local loopback tests, dispatched to LAN PM. Requires exact approved source/identity/raw+canonical batch hashes/tuples, expiry, normal auth and verified backups; results pending. No live window/firewall/phone update/upload enabled. See `33_one_phone_test_preparation.md`.
+
+## Frozen reviewed-batch safeguard
+
+- Review UI now holds a memory-only frozen plan. Configured reviewed runs send exact bytes, enforce one batch and invalidate if the pending snapshot/identity changes. Refresh/reprepare/lock/disposal discard the plan. No upload UI or phone update enabled.
+- All 28 focused UI/configured-service/runner/actual-LAN tests passed; focused analysis clean. Owner confirmed all phone pending worker records are test data; exact outbound review remains required. Home addresses checked: laptop 192.168.1.7, phone 192.168.1.4 (point-in-time). No network settings changed. See `32_frozen_reviewed_batch.md`.
+
+## APK-to-actual-LAN loopback integration
+
+- LAN final timestamp regression report received: 4 files/51 tests and lint passed. Updated validator/worker hashes independently verified; pending regression evidence resolved. No additional phone changes.
+
+- One actual end-to-end test passed: normal synthetic enrollment, pinned Dart transport/configured runner, 3 creates, duplicate replay, 2 update/delete revisions, empty status, exact durable operation/payload matches and verified daily backup. Focused Dart analysis clean. Test-only tools added; no phone modifications.
+- Discovered LAN timestamp precision rejection; LAN PM updated validation to accept preserved six-digit UTC fractions. Actual microsecond integration passes; LAN's standalone validator regression report remains pending after its task usage limit. See `31_apk_lan_loopback_integration.md`.
+
+## U2 phone review build 0.9.8+23
+
+- Owner reported the requested no-send phone walkthrough passed: batch/operation review works, record labels and pending count are correct, and Refresh clears review. This is user-reported phone acceptance; no live upload is claimed.
+
+- All 25 focused manifest/workspace/pairing tests passed, focused Dart analysis clean. Signed Gradle release build passed in 5 minutes; apksigner verification and AAPT package/version/INTERNET checks passed.
+- APK `build/app/outputs/flutter-apk/app-release.apk`: 66,910,922 bytes; SHA-256 `4B3C82CA65C6AED118D7090E245E70596306F38D41D156008794A5ED12AFF4B6`.
+- Installed with `adb install -r` on ORCE49UWDQVGRC49 without clearing storage. Package reports version 0.9.8/build 23; cold launch Status ok, 802 ms. User review pending. No uploads, retention, pairing reset or phone records/outbox modifications performed.
+
+## U2 local no-send first-batch review
+
+- Added an expandable local review with exact batch/operation identity, record labels, revisions/sequences and body/payload hashes. First-batch dependency warnings require dashboard confirmation; test-data status remains explicitly unverified. Refresh clears review; queue unchanged.
+- All 13 focused manifest/workspace tests passed; focused analysis clean. No upload action, release build/install or phone changes. See `30_no_send_batch_review.md`.
+
+## Controlled upload planning
+
+- LAN U1 backend evidence received/reviewed: LAN reports lint and 2 files/3 scenarios passed; independently checked tool hashes, loopback isolation/backup wiring and all 16 contract fixtures. Ten local guard tests passed. Reviewed upload guard snapshot retained; S3 unchanged. No phone-facing listener or upload authorized. See `29_controlled_upload_test_plan.md`.
+
+- U1 successor implementation/loopback synthetic enrollment/auth/storage/backup tests authorized and dispatched to LAN PM; evidence pending. APK one-batch run limit implemented and verified with 13 focused tests and clean analysis. No phone UI/build/install/upload changes.
+
+- Drafted `29_controlled_upload_test_plan.md` and incorporated LAN PM read-only review. Requires a separate fresh-store successor, normal authentication, actual verified backup behavior, outbound manifest and enforced one-batch first phone test. Implementation/evidence pending; no dashboard readiness is claimed.
+- Planned laptop-only actual API testing before phone UI/upload testing. The entire selected worker queue must be confirmed synthetic, because the runner sends all its pending operations. No service/firewall/build/install/upload changes performed.
+
+## Configured manual sync integration
+
+- Connected secure upload/status transport to the runner through a configuration/session guarded service. Authenticated status is checked before upload and for empty queues. Status never acknowledges operations.
+- All 19 focused configured-service/runner/transport/real-TLS tests passed; focused analysis is clean. No UI enablement, phone build/install/data changes, retries, completion timestamp or retention. See `28_configured_manual_sync.md`.
+
+## Local HTTPS integration and status validation
+
+- Concrete loopback TLS tests passed for UTF-8 uploads, chunked replies, status GET, wrong certificate blocking, redirects, malformed JSON and response limits. Added exact device/worker active-status validation; status watermarks cannot acknowledge operations.
+- All 12 focused HTTPS/status/transport tests passed; focused analysis is clean. Temporary test keys deleted and test servers closed. No build/install or phone data changes. See `27_secure_sync_transport.md`.
+
+## Secure sync transport preparation
+
+- Added certificate-pinned upload/status transport with secure-store Bearer authentication, same-socket certificate verification, timeout, response/upload bounds and redirect refusal. Not connected to UI or the runner.
+- All 15 focused transport/runner/SQLite tests passed. Transport security tests use injected connections; concrete local TLS integration and status validation remain next. No build/install or phone data changes. See `27_secure_sync_transport.md`.
+
+## Manual sync orchestration with fake transport
+
+- Added sequential batch orchestration with exact receipt application, partial/failure stops, concurrent-run guard and session checks. No concrete transport or UI integration is enabled; empty queues do not claim dashboard success.
+- Nine focused runner/SQLite tests passed. No phone build/install or data changes. See `26_manual_sync_orchestration.md`.
+
+## P2.5b local SQLite acknowledgement application
+
+- Added transactional exact-operation acknowledgement application, with worker/project/device and full audit snapshot validation. Rejected/missing operations and newer revisions remain pending; duplicate application is idempotent. No UI/transport connection, retention or whole-sync completion marking is enabled.
+- All 38 focused sync/database tests passed. No schema change, release build, phone installation or phone data modifications occurred. See `25_offline_acknowledgement_validation.md`.
+
+## P2.5a offline acknowledgement validation
+
+- Added exact-batch receipt validation with immutable accepted/rejected/missing operation results. Unknown, repeated, mismatched or malformed entries invalidate the receipt. No database marking, transport, cleanup or phone installation is enabled.
+- All 24 focused acknowledgement/batch tests passed; focused Dart analysis is clean. Updated API receipt examples to match accepted fixtures and the LAN implementation. See `25_offline_acknowledgement_validation.md`.
+
+## Local preparation phone review build (0.9.7+22)
+
+- User reported the requested offline phone walkthrough passed: local validation/counts work with connectivity off, pending changes remain unchanged, paired state remains Yes, Ready to sync remains No, and Refresh clears preparation results. No live upload or acknowledgement is claimed.
+- Updated app/request/preparation version to 0.9.7+22. All 30 focused widget, batch and pairing tests passed; focused Dart analysis is clean. Signed Gradle release build completed successfully; APK signature verification and AAPT version/INTERNET checks passed.
+- Artifact: `build/app/outputs/flutter-apk/app-release.apk`, size 66,845,386 bytes, SHA-256 `34FBF72DAF3FA5D7E0355A05D8B2B49A39A4FB09448C1EB9A2B3B6929D209B20`.
+- Phone temporarily disappeared before installation, then reconnected. Installed as an update with data preserved; physical package reports 0.9.7/build 22 and granted INTERNET permission. Cold launch succeeded. User offline preparation/count/pairing-preservation walkthrough remains pending. No network upload/acknowledgement/cleanup is enabled.
+
+## P2.4b local preparation action in Sync Status
+
+- Added Prepare changes locally with current worker's operation count, batch count and total bytes; clear success/empty/failure results. No payload content or raw parsing exception is shown, and no credential/network/SQLite write is used for preparation. Refresh resets the previous result; navigation/worker changes discard late results.
+- Updated connection wording to reflect the actual paired state and disabled sending. All 18 focused widget/builder tests passed, including queue preservation, refresh, empty and malformed payload cases; focused Dart analysis is clean.
+- No phone review build/install or APK version change was performed. Next is a signed phone review test; upload/acknowledgement/cleanup remain disabled. See `24_offline_sync_batch_preparation.md`.
+
+## P2.4a offline sync batch preparation
+
+- Added a pure v1 batch builder with ownership/identity/revision checks, decoded payloads, ordered immutable batches and 100-operation/1-MiB UTF-8 limits. Individually oversized operations block preparation without skipping dependencies; empty queues produce no batches.
+- Eight focused tests passed, including four exact accepted fixtures and actual SQLite queue preservation. Focused Dart analysis is clean. See `24_offline_sync_batch_preparation.md`.
+- No UI integration, network upload, credential use, acknowledgement, cleanup, APK version change/build/install or phone data changes occurred.
+
+## S3 pairing and APK restart passed (0.9.6+21)
+
+- Owner reported all requested Wi-Fi-only retry steps passed: certificate matches, actual pairing succeeds, and after APK restart Dashboard paired remains Yes with Ready to sync No. This is user-reported phone acceptance, not backend restart persistence.
+- Independent read-only inspection of the final isolated dashboard found exactly one active device, one used pairing code, zero accepted operations and zero sync batches. Server metadata recorded HTTP 201/paired. No upload, acknowledgement or retention cleanup was performed.
+- Stopped the exact test service and verified no LISTENING rows remained on ports 3001 or 3443. Protected synthetic stores retained. Owner removal of temporary firewall rule `Outreach-S3-Retry` remains pending, so rollback is not fully closed yet.
+- Next proposed development chunk is offline sync payload/batch preparation against the accepted API contract, with no real upload/acknowledgement/cleanup activation.
+
+## Pairing fix installation and fresh S3 retry setup
+
+- Wi-Fi-only follow-up: owner disconnected Ethernet. Verified laptop Wi-Fi 192.168.1.100 and phone 192.168.1.11; previous listeners were already absent. Generated a fresh protected SAN-valid certificate for .100 and started a new isolated S3 instance. Phone TCP reachability now passed; trusted local TLS/upload-403 and unauthenticated code-401 checks passed. Phone certificate/pairing/restart results remain pending. Existing temporary S3 firewall rule still targets .2 and must be removed at test closure.
+- Firewall inspection correction: `netsh ... show rule name=` matches the display name, not PowerShell's internal rule Name. Earlier missing-rule assertions based on internal names were unreliable. Display-name inspection confirmed the S3 retry rule exists with the requested restricted .2/.11/Private settings; S1 display-name inspection found no matching rule. No further rule was created by the agent.
+- Owner reauthorized build/install after the declined request. Following interruption, verified the completed release artifact using AAPT (0.9.6+21, INTERNET permission) and APK signature verification; installed as an update preserving data. Physical package version and granted INTERNET permission confirmed, cold launch successful.
+- Artifact size 66,747,082 bytes; SHA-256 `F6FD354FFD59704EC37A28EDF6CA49B4CBE4A3303AC96D28A545F2DADA588239`.
+- Laptop DHCP address changed to 192.168.1.2, so generated a new protected short-lived synthetic certificate covering that address, then started a fresh isolated S3 store. Old state retained. Operator address remains loopback 3001/operator; new phone API is https://192.168.1.2:3443/api/v1. No code generated or phone pairing attempted by the agent.
+- Phone was USB-connected but had no wlan0 IPv4 at initial check; requested same-network Wi-Fi connection. Owner must explicitly clear only saved pairing after install, enter the newly displayed trusted fingerprint/address and generate a fresh code. Uploads/acknowledgement/cleanup remain excluded.
+
+## Pairing state protection fix (0.9.6+21 development)
+
+- S3 phone inspection showed Dashboard paired No and pairing code saved Yes, while read-only dashboard SQLite showed one active device and one used code. Test service metadata logs later confirmed a successful 201 pairing followed by a 409 pairing_code_used retry. Saving preparation before that retry reset the local paired row; no upload occurred.
+- Saving identical dashboard settings now preserves a Paired row; changing a paired dashboard is rejected. Paired UI locks address/code/fingerprint and disables save/re-pair. The pairing service also blocks repeat attempts before any network call. Explicit Clear saved pairing now removes the hidden device credential as well as local settings/fingerprint.
+- All 29 focused pairing/widget/database tests passed after the final changes; focused Dart analysis found no issues. Regression coverage includes paired metadata survival after settings-save/database reopen, rejection of dashboard changes, no repeat transport call, locked paired controls and credential deletion on explicit clear.
+- Signed build execution was rejected at the permission gate. No 0.9.6+21 APK was built or installed; phone remains 0.9.5+20. Stopped the previous synthetic dashboard instance and confirmed test listeners gone; old isolated state is retained.
+- LAN PM confirmed retry requires a fresh empty synthetic dashboard store, because the existing device and used code conflict in the old store. After build/install, owner explicitly clears only pairing settings/credential, recreates a synthetic admin on a fresh instance and uses a new code with unchanged phone worker/device identity. Phone records/outbox are not cleared. This is a synthetic workaround, not production lost-response recovery or backend restart persistence.
+
+## S3 preparation: pairing-only request guard
+
+- Owner approved LAN PM coordination for isolated launcher integration. Sent the guard and preparation document for review against actual LAN authorization/storage. Subsequent read-only checks found no S1 firewall rule by its exact name and no listener on 3443; earlier pending rollback checks are now closed. No firewall changes were made in this check.
+- Added local synthetic test guard and five passing HTTP tests; uploads and browser actions outside pairing preparation are blocked before supplied backend handlers. Allowed requests preserve backend responses; actual LAN authorization/storage integration remains pending.
+- See `23_s3_pairing_test_preparation.md` for scope, evidence limits and the next isolated launcher chunk. No live server, code issuance, pairing or phone data change occurred during this preparation chunk.
+
+## Release network permission fix (0.9.5+20)
+
+- User reported both certificate checks worked and pairing preparation settings were saved. Correct/wrong fingerprint phone checks are accepted; successful dashboard pairing is not claimed. Stopped the isolated Node test service and confirmed no TCP listener remained on 3443. Administrator removal of temporary firewall rule `Outreach-S1-62f431de` remains pending; S1 rollback is not fully closed until that is confirmed.
+- Diagnosed the S1 phone connection failure: installed release 0.9.4+19 lacked `android.permission.INTERNET`; only the debug manifest declared it. Added the permission to the main manifest for release builds.
+- Updated app and pairing request version to 0.9.5+20. Focused pairing/certificate tests passed (16 tests); signed Gradle release build passed. AAPT inspection of the final APK confirms versionCode 20/versionName 0.9.5 and INTERNET permission.
+- Release SHA-256: `FC3CE4E3833996112DB94CC32318E8CDCD03617E4F56CF873415F361424D2955`. Installed with update flag on the connected phone, preserving app data. Certificate match/mismatch retest remains pending; no pairing, upload, acknowledgement or cleanup was performed.
+
+## Development laptop S1 preparation (2026-09-17)
+
+- User authorized isolated laptop certificate-test setup. Started the existing LAN Outreach server module with fresh synthetic SQLite/TLS/backup paths under an ignored, uniquely named `build/s1-*` directory with restricted folder ACLs; no production environment file was loaded.
+- Endpoint: `https://192.168.1.5:3443/api/v1`; selected phone Wi-Fi address: `192.168.1.3`. A seven-day self-signed certificate covers the laptop IP. Local TLS verification using that certificate as the explicit trust source passed; its DER SHA-256 matches the locally generated public fingerprint.
+- The local test launcher replaces HTTP request handlers with a 403 response; only TLS certificate checking is available, preventing pairing and upload during S1. No APK source change or phone installation was needed.
+- Attempt to create a phone-restricted temporary firewall rule failed with Windows Access Denied, even outside the sandbox; no successful firewall change is claimed. A phone TCP reachability probe completed with exit code 0. APK correct/wrong fingerprint checks and final stop/rollback remain pending user testing.
+- This is development S1 setup evidence only, not S1 acceptance, successful pairing, sync or office deployment approval. Local test artifacts and private key remain excluded from Git.
+
 ## APK review build 0.9.4+19
 
+- User reported the requested phone UI walkthrough passed on 2026-09-17. This records acceptance of the pairing UI review only; it does not establish a successful live certificate check or dashboard pairing.
 - Bumped the APK version to `0.9.4+19` for a phone review build containing the controlled **Pair with dashboard** UI action.
 - Focused validation completed on the development computer: pairing and hotspot widget tests passed with `flutter test test\pairing_preparation_test.dart test\hotspot_widget_test.dart --concurrency=1`.
 - Release APK built successfully through Gradle after refreshing generated Flutter version metadata in `android\local.properties`. The Flutter wrapper build command hung before starting; direct Gradle build required access to the existing `D:\gradle` cache.

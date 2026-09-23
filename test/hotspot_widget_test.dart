@@ -1,15 +1,10 @@
 import 'dart:async';
-import 'dart:convert';
 import 'package:ansvk_outreach/app.dart';
 import 'package:ansvk_outreach/auth/auth_service.dart';
 import 'package:ansvk_outreach/auth/session_controller.dart';
 import 'package:ansvk_outreach/database/app_database.dart';
 import 'package:ansvk_outreach/database/outreach_repository.dart';
 import 'package:ansvk_outreach/hotspots/location_service.dart';
-import 'package:ansvk_outreach/sync/certificate_fingerprint_store.dart';
-import 'package:ansvk_outreach/sync/dashboard_certificate_checker.dart';
-import 'package:ansvk_outreach/sync/dashboard_pairing_service.dart';
-import 'package:ansvk_outreach/sync/device_credential_store.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
@@ -59,10 +54,12 @@ void main() {
     await tester.pump(const Duration(milliseconds: 300));
   }
 
-  Finder visibleListScrollable() => find.descendant(
-    of: find.byType(ListView).last,
-    matching: find.byType(Scrollable),
-  ).first;
+  Finder visibleListScrollable() => find
+      .descendant(
+        of: find.byType(ListView).last,
+        matching: find.byType(Scrollable),
+      )
+      .first;
 
   Future<void> start(WidgetTester tester) async {
     await tester.runAsync(
@@ -220,30 +217,60 @@ void main() {
         'client_code': '2026/MY/0077',
       }),
     );
-    final certificateFingerprint = (await tester.runAsync(
-      () => DashboardCertificateChecker.sha256Hex([1, 2, 3, 4]),
-    ))!;
     await tester.pumpWidget(
       OutreachApp(
         session: session,
         hasAccounts: true,
         location: HotspotLocationService(gateway: gps),
-        dashboardCertificateChecker: DashboardCertificateChecker(
-          probe: (_, _) async => [1, 2, 3, 4],
-        ),
-        pairingTransport: _FakePairingTransport(),
-        deviceCredentialStore: DeviceCredentialStore.memory(),
       ),
     );
     await tap(tester, find.byKey(const ValueKey('open-sync-status')));
     expect(find.text('Sync status'), findsOneWidget);
     expect(find.text('Desktop connection'), findsOneWidget);
     expect(
-      find.textContaining('checking pending changes only'),
+      find.textContaining('Sending records is not enabled yet'),
       findsOneWidget,
     );
     expect(find.text('Pending changes'), findsOneWidget);
     expect(find.text('3'), findsOneWidget);
+    final beforePreparation = await tester.runAsync(repo.pendingOperations);
+    await tap(tester, find.byKey(const ValueKey('prepare-sync-batches')));
+    await flush(tester);
+    expect(
+      find.text(
+        'Local validation passed. No data was sent; all changes remain pending.',
+      ),
+      findsOneWidget,
+    );
+    expect(find.text('Prepared batches'), findsOneWidget);
+    expect(find.text('Prepared changes'), findsOneWidget);
+    expect(find.text('Total bytes'), findsOneWidget);
+    await tap(tester, find.byKey(const ValueKey('review-first-sync-batch')));
+    expect(
+      find.textContaining('Test-data status is unverified'),
+      findsOneWidget,
+    );
+    final firstOperation = beforePreparation!.first;
+    await tap(
+      tester,
+      find.byKey(
+        ValueKey('review-operation-${firstOperation['operation_id']}'),
+      ),
+    );
+    expect(
+      find.textContaining('Operation: ${firstOperation['operation_id']}'),
+      findsOneWidget,
+    );
+    expect(find.textContaining('Payload SHA-256:'), findsOneWidget);
+    expect(await tester.runAsync(repo.pendingOperations), beforePreparation);
+    await tap(tester, find.byKey(const ValueKey('refresh-sync-status')));
+    expect(find.text('Local preparation'), findsNothing);
+    expect(find.byKey(const ValueKey('review-first-sync-batch')), findsNothing);
+    await tester.scrollUntilVisible(
+      find.text('Not configured'),
+      -100,
+      scrollable: visibleListScrollable(),
+    );
     expect(find.text('Not configured'), findsOneWidget);
     expect(find.text('Dashboard'), findsOneWidget);
     expect(find.text('Address'), findsOneWidget);
@@ -300,150 +327,92 @@ void main() {
     await tap(tester, find.byTooltip('Back'));
     expect(find.text('Sync status'), findsOneWidget);
     await tester.scrollUntilVisible(
-      find.text('Set pairing information'),
+      find.byKey(const ValueKey('qr-pairing-pending')),
       200,
       scrollable: visibleListScrollable(),
     );
-    expect(find.text('Set pairing information'), findsOneWidget);
-    await tester.scrollUntilVisible(
-      find.text('Sync unavailable until dashboard setup'),
-      200,
-      scrollable: visibleListScrollable(),
-    );
-    expect(find.text('Sync unavailable until dashboard setup'), findsOneWidget);
-    await tap(
-      tester,
-      find.byKey(const ValueKey('configure-dashboard-address')),
-    );
-    expect(find.text('Dashboard pairing'), findsOneWidget);
-    expect(find.text('Save pairing info only'), findsOneWidget);
-    expect(find.text('Check certificate'), findsOneWidget);
-    await tester.enterText(
-      find.byKey(const ValueKey('dashboard-address')),
-      'http://192.168.1.50:3443/api/v1',
-    );
-    await tester.enterText(
-      find.byKey(const ValueKey('dashboard-pairing-code')),
-      '123456',
-    );
-    await tester.enterText(
-      find.byKey(const ValueKey('dashboard-certificate-fingerprint')),
-      certificateFingerprint,
-    );
-    await tap(tester, find.byKey(const ValueKey('save-dashboard-address')));
-    expect(
-      find.text('Enter the HTTPS device API address ending with /api/v1.'),
-      findsOneWidget,
-    );
-    await tester.enterText(
-      find.byKey(const ValueKey('dashboard-address')),
-      'https://192.168.1.50:3443/api/v1',
-    );
-    await tester.enterText(
-      find.byKey(const ValueKey('dashboard-pairing-code')),
-      '12345',
-    );
-    await tap(tester, find.byKey(const ValueKey('save-dashboard-address')));
-    expect(
-      find.text('Enter the exact 6-digit pairing code from the dashboard.'),
-      findsOneWidget,
-    );
-    await tester.enterText(
-      find.byKey(const ValueKey('dashboard-pairing-code')),
-      '012345',
-    );
-    await tester.enterText(
-      find.byKey(const ValueKey('dashboard-certificate-fingerprint')),
-      'not-a-fingerprint',
-    );
-    await tap(tester, find.byKey(const ValueKey('save-dashboard-address')));
-    expect(
-      find.text('Enter the full SHA-256 certificate fingerprint.'),
-      findsOneWidget,
-    );
-    await tester.enterText(
-      find.byKey(const ValueKey('dashboard-certificate-fingerprint')),
-      certificateFingerprint,
-    );
-    await tap(tester, find.byKey(const ValueKey('save-dashboard-address')));
-    for (var i = 0; i < 10 && find.text('Sync status').evaluate().isEmpty; i++) {
-      await tester.pump(const Duration(milliseconds: 200));
-      await flush(tester);
+    for (final key in [
+      'configure-dashboard-address',
+      'dashboard-address',
+      'dashboard-pairing-code',
+      'dashboard-certificate-fingerprint',
+      'pair-dashboard',
+      'clear-dashboard-address',
+    ]) {
+      expect(find.byKey(ValueKey(key)), findsNothing);
     }
-    await tester.pumpAndSettle();
-    expect(find.text('Sync status'), findsOneWidget);
-    await tester.scrollUntilVisible(
-      find.text('https://192.168.1.50:3443/api/v1'),
-      -200,
-      scrollable: visibleListScrollable(),
-    );
-    expect(find.text('https://192.168.1.50:3443/api/v1'), findsOneWidget);
-    expect(
-      find.text(CertificateFingerprintStore.hint(certificateFingerprint)),
-      findsOneWidget,
-    );
-    expect(find.text('Not configured'), findsOneWidget);
-    await tester.scrollUntilVisible(
-      find.text('Dashboard address saved'),
-      200,
-      scrollable: visibleListScrollable(),
-    );
-    expect(find.text('Dashboard address saved'), findsOneWidget);
-    await tester.scrollUntilVisible(
-      find.text('Ready to request pairing'),
-      200,
-      scrollable: visibleListScrollable(),
-    );
-    expect(find.text('Ready to request pairing'), findsOneWidget);
-    await tester.scrollUntilVisible(
-      find.text('Set pairing information'),
-      200,
-      scrollable: visibleListScrollable(),
-    );
-    await tap(
-      tester,
-      find.byKey(const ValueKey('configure-dashboard-address')),
-    );
-    expect(find.text('Clear saved pairing'), findsOneWidget);
-    expect(find.text('Pair with dashboard'), findsOneWidget);
-    await tester.enterText(
-      find.byKey(const ValueKey('dashboard-pairing-code')),
-      '012345',
-    );
-    await tap(tester, find.byKey(const ValueKey('pair-dashboard')));
-    for (var i = 0; i < 10 && find.text('Sync status').evaluate().isEmpty; i++) {
-      await tester.pump(const Duration(milliseconds: 200));
-      await flush(tester);
-    }
-    await tester.pumpAndSettle();
-    expect(find.text('Sync status'), findsOneWidget);
-    expect(find.text('Paired'), findsOneWidget);
-    await tester.scrollUntilVisible(
-      find.text('Dashboard paired'),
-      200,
-      scrollable: visibleListScrollable(),
-    );
-    expect(find.text('Dashboard paired'), findsOneWidget);
-    expect(find.text('Ready to sync'), findsOneWidget);
-    expect(find.text('No'), findsWidgets);
-    await tester.scrollUntilVisible(
-      find.text('Set pairing information'),
-      200,
-      scrollable: visibleListScrollable(),
-    );
-    await tap(
-      tester,
-      find.byKey(const ValueKey('configure-dashboard-address')),
-    );
-    await tap(tester, find.byKey(const ValueKey('clear-dashboard-address')));
-    expect(find.text('Sync status'), findsOneWidget);
-    expect(find.text('https://192.168.1.50:3443/api/v1'), findsNothing);
-    expect(
-      find.text(CertificateFingerprintStore.hint(certificateFingerprint)),
-      findsNothing,
-    );
     session.logout();
   });
+
+  testWidgets(
+    'local preparation reports an empty queue without changing records',
+    (tester) async {
+      await tester.runAsync(
+        () => session.signIn('Alice', 'password1', register: true),
+      );
+      await tester.runAsync(() => db.connection.delete('sync_outbox'));
+      await tester.pumpWidget(OutreachApp(session: session, hasAccounts: true));
+      await tap(tester, find.byKey(const ValueKey('open-sync-status')));
+      await tap(tester, find.byKey(const ValueKey('prepare-sync-batches')));
+      expect(
+        find.text('No pending changes to prepare. No data was sent.'),
+        findsOneWidget,
+      );
+      expect(find.text('Prepared batches'), findsOneWidget);
+      expect(await tester.runAsync(repo.pendingOperations), isEmpty);
+      session.logout();
+    },
+  );
+  testWidgets('locking discards frozen batch review before unlock', (
+    tester,
+  ) async {
+    await tester.runAsync(
+      () => session.signIn('Alice', 'password1', register: true),
+    );
+    await tester.pumpWidget(OutreachApp(session: session, hasAccounts: true));
+    await tap(tester, find.byKey(const ValueKey('open-sync-status')));
+    await tap(tester, find.byKey(const ValueKey('prepare-sync-batches')));
+    await flush(tester);
+    expect(
+      find.byKey(const ValueKey('review-first-sync-batch')),
+      findsOneWidget,
+    );
+    session.lock();
+    await tester.pump();
+    await tester.runAsync(() => session.unlock('password1'));
+    await tester.pump();
+    expect(find.byKey(const ValueKey('review-first-sync-batch')), findsNothing);
+    expect(await tester.runAsync(repo.pendingOperations), hasLength(1));
+    session.logout();
+  });
+
+  testWidgets(
+    'local preparation failure keeps the queue and hides payload details',
+    (tester) async {
+      await tester.runAsync(
+        () => session.signIn('Alice', 'password1', register: true),
+      );
+      await tester.runAsync(
+        () => db.connection.update('audit_operations', {
+          'payload': 'invalid-sensitive-payload',
+        }),
+      );
+      final before = await tester.runAsync(repo.pendingOperations);
+      await tester.pumpWidget(OutreachApp(session: session, hasAccounts: true));
+      await tap(tester, find.byKey(const ValueKey('open-sync-status')));
+      await tap(tester, find.byKey(const ValueKey('prepare-sync-batches')));
+      expect(
+        find.text(
+          'Could not prepare changes. All records remain saved and pending. Ask the data assistant to review.',
+        ),
+        findsOneWidget,
+      );
+      expect(find.textContaining('invalid-sensitive-payload'), findsNothing);
+      expect(find.text('Local preparation'), findsNothing);
+      expect(await tester.runAsync(repo.pendingOperations), before);
+      session.logout();
+    },
+  );
 
   testWidgets('today records list opens a read-only detail page', (
     tester,
@@ -685,34 +654,4 @@ void main() {
       session.logout();
     },
   );
-}
-
-class _FakePairingTransport implements PairingTransport {
-  final credential = 'credential-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx';
-  late Map<String, Object?> request;
-
-  @override
-  Future<PairingTransportResponse> postJson(
-    Uri uri,
-    String jsonBody, {
-    required String expectedCertificateFingerprint,
-  }) async {
-    expect(uri.toString(), 'https://192.168.1.50:3443/api/v1/pairing/requests');
-    expect(expectedCertificateFingerprint, isNotEmpty);
-    request = jsonDecode(jsonBody) as Map<String, Object?>;
-    return PairingTransportResponse(
-      statusCode: 200,
-      body: jsonEncode({
-        'ok': true,
-        'request_id': 'request-widget-1',
-        'dashboard_id': 'dashboard-widget',
-        'dashboard_name': 'Widget Dashboard',
-        'device_id': request['device_id'],
-        'worker_id': request['worker_id'],
-        'device_credential': credential,
-        'paired_at': '2026-09-17T01:00:00Z',
-        'server_time': '2026-09-17T01:00:01Z',
-      }),
-    );
-  }
 }

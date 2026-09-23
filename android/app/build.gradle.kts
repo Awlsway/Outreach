@@ -13,6 +13,7 @@ if (keystorePropertiesFile.exists()) {
 }
 
 android {
+    buildFeatures { buildConfig = true }
     namespace = "org.ansvk.ansvk_outreach"
     compileSdk = flutter.compileSdkVersion
     ndkVersion = flutter.ndkVersion
@@ -23,6 +24,7 @@ android {
     }
 
     defaultConfig {
+        buildConfigField("boolean", "SYNTHETIC_SYNC_TEST", (providers.gradleProperty("outreachSyntheticSyncTest").orNull == "true").toString())
         // TODO: Specify your own unique Application ID (https://developer.android.com/studio/build/application-id.html).
         applicationId = "org.ansvk.ansvk_outreach"
         // You can update the following values to match your application needs.

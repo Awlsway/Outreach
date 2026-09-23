@@ -1,12 +1,16 @@
+> Historical development record: manual pairing UI has been removed. Current onboarding is QR-only; see `36_qr_pairing_v1.md` and `37_manual_pairing_cleanup.md`. Retained steps below are not current worker instructions.
+
 # Controlled synthetic connection and pairing plan
 
 Status: draft gate plan, 16 September 2026.
+
+Current-state update (2026-09-17): historical evidence below predates successful synthetic pairing and later preparation. The installed 0.9.7+22 release SHA-256 is `34FBF72DAF3FA5D7E0355A05D8B2B49A39A4FB09448C1EB9A2B3B6929D209B20`; the older hash below is not its identity. Synthetic pairing/APK restart and offline preparation are user-passed. Internal upload/status integration is locally tested but not enabled in phone UI. The pairing-only listener is stopped. See `23_s3_pairing_test_preparation.md`, `28_configured_manual_sync.md` and the pending-review `29_controlled_upload_test_plan.md` for current scope/evidence.
 
 This plan records the next safe path for connecting the ANSVK Outreach APK to the existing LAN Outreach foundation. It is a planning document only. It does not authorize starting a listener, changing office configuration, opening firewall access, pairing a phone, uploading records, acknowledging records, or deleting phone data.
 
 ## Current evidence
 
-- APK release review build: `0.9.4+19`.
+- APK release review build: `0.9.7+22`.
 - APK release artifact: `build/app/outputs/flutter-apk/app-release.apk`.
 - APK release SHA-256: `413E24677AAAEB4D4EFF50DF29A0755907F28E8DB2D74FEBA5F82451832DD484`.
 - Phone test device: `ORCE49UWDQVGRC49`.

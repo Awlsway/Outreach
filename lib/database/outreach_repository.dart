@@ -6,6 +6,8 @@ import 'package:uuid/uuid.dart';
 import 'app_database.dart';
 import 'schema.dart';
 import '../sync/pairing_response.dart';
+import '../sync/sync_acknowledgement.dart';
+import '../sync/sync_batch_builder.dart';
 
 typedef Row = Map<String, Object?>;
 
@@ -347,6 +349,73 @@ class OutreachRepository {
     [_owner],
   );
 
+  /// Applies a validated receipt only to the exact immutable audited operations.
+  /// The caller must obtain the response from the trusted pinned transport.
+  /// This does not declare a whole sync complete or perform retention cleanup.
+  Future<int> applySyncAcknowledgement({
+    required PreparedSyncBatch sentBatch,
+    required Map<String, Object?> response,
+    required int httpStatus,
+  }) async {
+    final owner = _owner;
+    final receipt = SyncAcknowledgement.parse(
+      response,
+      sentBatch: sentBatch,
+      httpStatus: httpStatus,
+    );
+    final sent = jsonDecode(sentBatch.jsonBody) as Map<String, dynamic>;
+    return _db.transaction((tx) async {
+      if (_owner != owner) throw StateError('Worker session changed');
+      final identity = (await tx.query('app_identity', limit: 1)).single;
+      if (sent['worker_id'] != owner ||
+          sent['project_id'] != identity['project_id'] ||
+          sent['device_id'] != identity['device_id']) {
+        throw StateError('Batch identity does not match local identity');
+      }
+      // Check every sent operation before modifying any outbox row.
+      for (final item in sent['operations'] as List) {
+        final rows = await tx.rawQuery(
+          'SELECT a.* FROM audit_operations a JOIN sync_outbox o USING(operation_id) '
+          'WHERE a.operation_id = ? AND a.actor_id = ?',
+          [item['operation_id'], owner],
+        );
+        if (rows.length != 1) {
+          throw StateError('Local operation is unavailable');
+        }
+        final local = rows.single;
+        for (final field in [
+          'sequence',
+          'operation_id',
+          'actor_id',
+          'entity_type',
+          'entity_id',
+          'revision',
+          'action',
+          'occurred_at',
+        ]) {
+          if (item[field] != local[field]) {
+            throw StateError('Batch differs from local audit');
+          }
+        }
+        if (jsonEncode(item['payload']) !=
+            jsonEncode(jsonDecode(local['payload'] as String))) {
+          throw StateError('Batch payload differs from local audit');
+        }
+      }
+      var marked = 0;
+      for (final accepted in receipt.accepted) {
+        marked += await tx.update(
+          'sync_outbox',
+          {'acknowledged_at': accepted.acceptedAt.toIso8601String()},
+          where: 'operation_id = ? AND acknowledged_at IS NULL',
+          whereArgs: [accepted.operationId],
+        );
+      }
+      if (_owner != owner) throw StateError('Worker session changed');
+      return marked;
+    });
+  }
+
   Future<Row> syncStatus() async {
     final owner = _owner;
     final pending = (await _db.rawQuery(
@@ -439,34 +508,48 @@ class OutreachRepository {
     if (value.isEmpty) throw ArgumentError('Dashboard address is required');
     if (code.isEmpty) throw ArgumentError('Pairing code is required');
     final stamp = _clock().toUtc().toIso8601String();
-    await _db.update('dashboard_connection', {
-      'dashboard_url': value,
-      'pairing_code': code,
-      'pairing_prepared_at': stamp,
-      'status': 'Not configured',
-      'dashboard_id': null,
-      'dashboard_name': null,
-      'paired_at': null,
-      'updated_at': stamp,
-    }, where: 'singleton_id = 1');
+    await _db.transaction((txn) async {
+      final existing = (await txn.query(
+        'dashboard_connection',
+        limit: 1,
+      )).single;
+      if (existing['status'] == 'Paired') {
+        if (existing['dashboard_url'] == value) return;
+        throw StateError(
+          'Clear the existing pairing before changing dashboards.',
+        );
+      }
+      await txn.update('dashboard_connection', {
+        'dashboard_url': value,
+        'pairing_code': code,
+        'pairing_prepared_at': stamp,
+        'status': 'Not configured',
+        'dashboard_id': null,
+        'dashboard_name': null,
+        'paired_at': null,
+        'updated_at': stamp,
+      }, where: 'singleton_id = 1');
+    });
   }
 
-  Future<Row> dashboardPairingPreparation() async => (await _db.query(
-    'dashboard_connection',
-    limit: 1,
-  )).single;
+  Future<Row> dashboardPairingPreparation() async =>
+      (await _db.query('dashboard_connection', limit: 1)).single;
 
   Future<void> applyDashboardPairing(PairingSuccess success) async {
     final stamp = _clock().toUtc().toIso8601String();
-    final updated = await _db.update('dashboard_connection', {
-      'status': 'Paired',
-      'dashboard_id': success.dashboardId,
-      'dashboard_name': success.dashboardName,
-      'paired_at': success.pairedAt.toUtc().toIso8601String(),
-      'pairing_code': null,
-      'pairing_prepared_at': null,
-      'updated_at': stamp,
-    }, where: 'singleton_id = 1 AND dashboard_url IS NOT NULL');
+    final updated = await _db.update(
+      'dashboard_connection',
+      {
+        'status': 'Paired',
+        'dashboard_id': success.dashboardId,
+        'dashboard_name': success.dashboardName,
+        'paired_at': success.pairedAt.toUtc().toIso8601String(),
+        'pairing_code': null,
+        'pairing_prepared_at': null,
+        'updated_at': stamp,
+      },
+      where: 'singleton_id = 1 AND dashboard_url IS NOT NULL',
+    );
     if (updated != 1) {
       throw StateError('Dashboard pairing information is not prepared.');
     }

@@ -1,3 +1,5 @@
+> Historical development record: manual pairing UI has been removed. Current onboarding is QR-only; see `36_qr_pairing_v1.md` and `37_manual_pairing_cleanup.md`. Retained steps below are not current worker instructions.
+
 # S1 certificate-only test runbook
 
 Status: draft runbook, 16 September 2026.
@@ -73,7 +75,7 @@ The approved fingerprint must come from the trusted operator/dashboard display o
 | Field | Value |
 | --- | --- |
 | Phone device ID or label |  |
-| APK version shown | `0.9.4+19` expected |
+| APK version shown | `0.9.7+22` expected |
 | APK release SHA-256 | `413E24677AAAEB4D4EFF50DF29A0755907F28E8DB2D74FEBA5F82451832DD484` expected |
 | Signed-in test worker username |  |
 | Existing pending records preserved? | Yes / No |

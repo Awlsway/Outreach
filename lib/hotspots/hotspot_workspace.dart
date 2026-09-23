@@ -1,12 +1,16 @@
 import 'package:flutter/material.dart';
+import 'dart:async';
 import '../auth/session_controller.dart';
 import '../database/outreach_repository.dart' as data;
 import '../encounters/encounter_form.dart';
 import '../sync/certificate_fingerprint_store.dart';
-import '../sync/dashboard_certificate_checker.dart';
-import '../sync/dashboard_pairing_service.dart';
+import '../sync/sync_batch_builder.dart';
+import '../sync/sync_review_manifest.dart';
+import '../sync/reviewed_sync_plan.dart';
+import '../sync/synthetic_review_export.dart';
+import '../sync/configured_manual_sync.dart';
+import '../sync/manual_sync_runner.dart';
 import '../sync/device_credential_store.dart';
-import '../sync/pairing_request_builder.dart';
 import 'location_service.dart';
 import 'new_hotspot_form.dart';
 
@@ -21,7 +25,6 @@ enum _Page {
   recordDetail,
   editRecord,
   sync,
-  dashboardAddress,
   pendingChanges,
 }
 
@@ -33,15 +36,11 @@ class HotspotWorkspace extends StatefulWidget {
     required this.session,
     required this.location,
     this.certificateFingerprintStore,
-    this.dashboardCertificateChecker,
-    this.pairingTransport,
     this.deviceCredentialStore,
   });
   final SessionController session;
   final HotspotLocationService location;
   final CertificateFingerprintStore? certificateFingerprintStore;
-  final DashboardCertificateChecker? dashboardCertificateChecker;
-  final PairingTransport? pairingTransport;
   final DeviceCredentialStore? deviceCredentialStore;
   @override
   State<HotspotWorkspace> createState() => _HotspotWorkspaceState();
@@ -53,13 +52,8 @@ class _HotspotWorkspaceState extends State<HotspotWorkspace> {
     currentWorkerId: () => widget.session.currentWorkerId,
   );
   final _search = TextEditingController();
-  final _dashboardUrl = TextEditingController();
-  final _pairingCode = TextEditingController();
-  final _certificateFingerprint = TextEditingController();
   late final CertificateFingerprintStore _certificateFingerprintStore =
       widget.certificateFingerprintStore ?? CertificateFingerprintStore();
-  late final DashboardCertificateChecker _dashboardCertificateChecker =
-      widget.dashboardCertificateChecker ?? DashboardCertificateChecker();
   late final DeviceCredentialStore _deviceCredentialStore =
       widget.deviceCredentialStore ?? DeviceCredentialStore();
   _Page _page = _Page.home;
@@ -74,10 +68,14 @@ class _HotspotWorkspaceState extends State<HotspotWorkspace> {
   bool _recordsLoading = false;
   bool _summaryLoading = false;
   bool _syncLoading = false;
+  bool _preparingBatches = false;
+  bool _testActionRunning = false;
+  String? _testActionMessage;
+  Map<String, int>? _batchPreparation;
+  String? _batchPreparationMessage;
+  ReviewedSyncPlan? _reviewedPlan;
+  SyncReviewManifest? get _syncReviewManifest => _reviewedPlan?.manifest;
   bool _pendingChangesLoading = false;
-  bool _savingDashboardAddress = false;
-  bool _checkingDashboardCertificate = false;
-  bool _pairingDashboard = false;
   bool _deletingRecord = false;
   bool _saved = false;
   String? _error;
@@ -85,21 +83,33 @@ class _HotspotWorkspaceState extends State<HotspotWorkspace> {
   String? _summaryError;
   String? _syncError;
   String? _pendingChangesError;
-  String? _dashboardAddressError;
-  String? _dashboardPairingError;
-  String? _certificateFingerprintError;
-  String? _dashboardPairingStatus;
-  bool _dashboardPairingSucceeded = false;
-  DashboardCertificateCheckResult? _certificateCheckResult;
   int _query = 0;
 
   @override
+  void initState() {
+    super.initState();
+    widget.session.addListener(_invalidateReviewOnLock);
+  }
+
+  void _invalidateReviewOnLock() {
+    if (_reviewedPlan != null &&
+        widget.session.currentWorkerId != _reviewedPlan!.workerId) {
+      setState(() {
+        _reviewedPlan = null;
+        _batchPreparation = null;
+        _batchPreparationMessage = null;
+      });
+      unawaited(SyntheticReviewExport.clear());
+    }
+  }
+
+  @override
   void dispose() {
+    widget.session.removeListener(_invalidateReviewOnLock);
+    _reviewedPlan = null;
+    unawaited(SyntheticReviewExport.clear());
     _query++;
     _search.dispose();
-    _dashboardUrl.dispose();
-    _pairingCode.dispose();
-    _certificateFingerprint.dispose();
     super.dispose();
   }
 
@@ -140,8 +150,6 @@ class _HotspotWorkspaceState extends State<HotspotWorkspace> {
         _page == _Page.records ||
         _page == _Page.sync) {
       setState(() => _page = _Page.home);
-    } else if (_page == _Page.dashboardAddress) {
-      _openSyncStatus();
     } else if (_page == _Page.pendingChanges) {
       _openSyncStatus();
     } else if (_page == _Page.recordDetail) {
@@ -198,11 +206,17 @@ class _HotspotWorkspaceState extends State<HotspotWorkspace> {
   }
 
   Future<void> _openSyncStatus() async {
+    if (_testActionRunning) return;
+    if (SyntheticReviewExport.enabled) await SyntheticReviewExport.clear();
+    if (!mounted) return;
     widget.session.activity();
     setState(() {
       _page = _Page.sync;
       _syncLoading = true;
       _syncError = null;
+      _batchPreparation = null;
+      _batchPreparationMessage = null;
+      _reviewedPlan = null;
     });
     try {
       final status = await _repository.syncStatus();
@@ -226,22 +240,117 @@ class _HotspotWorkspaceState extends State<HotspotWorkspace> {
     }
   }
 
-  Future<void> _openDashboardAddress() async {
-    widget.session.activity();
-    _dashboardUrl.text = (_syncStatus?['dashboard_url'] as String?) ?? '';
-    _pairingCode.clear();
-    _certificateFingerprint.text =
-        await _certificateFingerprintStore.read() ?? '';
+  Future<void> _prepareSyncBatches() async {
+    if (_preparingBatches || _syncLoading || _testActionRunning) return;
+    if (SyntheticReviewExport.enabled) await SyntheticReviewExport.clear();
     if (!mounted) return;
+    widget.session.activity();
+    final workerId = widget.session.currentWorkerId;
+    if (workerId == null) return;
     setState(() {
-      _page = _Page.dashboardAddress;
-      _dashboardAddressError = null;
-      _dashboardPairingError = null;
-      _certificateFingerprintError = null;
-      _certificateCheckResult = null;
-      _dashboardPairingStatus = null;
-      _dashboardPairingSucceeded = false;
+      _preparingBatches = true;
+      _batchPreparation = null;
+      _batchPreparationMessage = null;
+      _reviewedPlan = null;
     });
+    try {
+      final operations = await _repository.pendingOperations();
+      final plan = operations.isEmpty
+          ? null
+          : await ReviewedSyncPlan.prepare(
+              _repository,
+              SyncBatchBuilder(appVersion: '0.9.9+24', clock: DateTime.now),
+            );
+      final batches = plan?.batches ?? <PreparedSyncBatch>[];
+      if (!mounted) return;
+      setState(() {
+        _preparingBatches = false;
+        if (_page != _Page.sync || widget.session.currentWorkerId != workerId) {
+          return;
+        }
+        _batchPreparation = {
+          'Prepared changes': operations.length,
+          'Prepared batches': batches.length,
+          'Total bytes': batches.fold<int>(
+            0,
+            (total, batch) => total + batch.byteLength,
+          ),
+        };
+        _reviewedPlan = plan;
+        _batchPreparationMessage = operations.isEmpty
+            ? 'No pending changes to prepare. No data was sent.'
+            : 'Local validation passed. No data was sent; all changes remain pending.';
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _preparingBatches = false;
+        if (_page != _Page.sync || widget.session.currentWorkerId != workerId) {
+          return;
+        }
+        // Never display parsing exceptions: they may contain client payloads.
+        _batchPreparationMessage =
+            'Could not prepare changes. All records remain saved and pending. Ask the data assistant to review.';
+      });
+    }
+  }
+
+  Future<void> _reviewedTestAction({required bool send}) async {
+    final plan = _reviewedPlan;
+    if (!SyntheticReviewExport.enabled || plan == null || _testActionRunning) {
+      return;
+    }
+    widget.session.activity();
+    setState(() {
+      _testActionRunning = true;
+      _testActionMessage = null;
+    });
+    try {
+      await plan.validate(_repository);
+      if (send) {
+        final result = await ConfiguredManualSync(
+          repository: _repository,
+          fingerprintStore: _certificateFingerprintStore,
+          credentialStore: _deviceCredentialStore,
+          builder: SyncBatchBuilder(
+            appVersion: '0.9.9+24',
+            clock: DateTime.now,
+          ),
+        ).run(reviewedPlan: plan);
+        await SyntheticReviewExport.clear();
+        if (!mounted) return;
+        setState(() {
+          _reviewedPlan = null;
+          _testActionMessage =
+              'Dashboard confirmed ${result.markedOperations} changes. '
+              '${result.outcome == ManualSyncOutcome.uploaded || result.outcome == ManualSyncOutcome.batchLimitReached ? 'Reviewed batch finished.' : 'Test stopped; unconfirmed changes remain pending.'}';
+        });
+      } else {
+        await SyntheticReviewExport.write(plan.batches.first.jsonBody);
+        await plan.validate(_repository);
+        if (mounted) {
+          setState(() {
+            _testActionMessage =
+                'Test file prepared for private USB review. No data was sent to the dashboard.';
+          });
+        }
+      }
+    } catch (_) {
+      await SyntheticReviewExport.clear();
+      if (mounted) {
+        setState(() {
+          _reviewedPlan = null;
+          _testActionMessage =
+              'Test stopped. Prepare changes again; unconfirmed records remain pending.';
+        });
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _testActionRunning = false;
+        });
+      }
+    }
   }
 
   Future<void> _openPendingChanges() async {
@@ -267,175 +376,6 @@ class _HotspotWorkspaceState extends State<HotspotWorkspace> {
     }
   }
 
-  bool get _dashboardSetupBusy =>
-      _savingDashboardAddress || _checkingDashboardCertificate || _pairingDashboard;
-
-  Future<bool> _saveDashboardPairingPreparation({bool stayOnPage = false}) async {
-    if (_dashboardSetupBusy) return false;
-    widget.session.activity();
-    final value = _dashboardUrl.text.trim();
-    final code = _pairingCode.text.trim();
-    final uri = Uri.tryParse(value);
-    if (uri == null ||
-        uri.scheme != 'https' ||
-        uri.host.isEmpty ||
-        !value.endsWith('/api/v1')) {
-      setState(() {
-        _dashboardAddressError =
-            'Enter the HTTPS device API address ending with /api/v1.';
-        _dashboardPairingError = null;
-        _certificateFingerprintError = null;
-        _dashboardPairingStatus = null;
-        _dashboardPairingSucceeded = false;
-      });
-      return false;
-    }
-    if (!RegExp(r'^\d{6}$').hasMatch(code)) {
-      setState(() {
-        _dashboardAddressError = null;
-        _dashboardPairingError =
-            'Enter the exact 6-digit pairing code from the dashboard.';
-        _certificateFingerprintError = null;
-        _dashboardPairingStatus = null;
-        _dashboardPairingSucceeded = false;
-      });
-      return false;
-    }
-    final fingerprint = _certificateFingerprint.text;
-    if (!CertificateFingerprintStore.isValidSha256(fingerprint)) {
-      setState(() {
-        _dashboardAddressError = null;
-        _dashboardPairingError = null;
-        _certificateFingerprintError =
-            'Enter the full SHA-256 certificate fingerprint.';
-        _dashboardPairingStatus = null;
-        _dashboardPairingSucceeded = false;
-      });
-      return false;
-    }
-    setState(() {
-      _savingDashboardAddress = true;
-      _dashboardAddressError = null;
-      _dashboardPairingError = null;
-      _certificateFingerprintError = null;
-      _dashboardPairingStatus = null;
-      _dashboardPairingSucceeded = false;
-    });
-    try {
-      final normalized = CertificateFingerprintStore.normalize(fingerprint);
-      await _certificateFingerprintStore.write(normalized);
-      await _repository.saveDashboardPairing(value, code);
-      if (!mounted) return false;
-      setState(() => _savingDashboardAddress = false);
-      if (!stayOnPage) _openSyncStatus();
-      return true;
-    } catch (_) {
-      if (!mounted) return false;
-      setState(() {
-        _savingDashboardAddress = false;
-        _dashboardAddressError = 'Could not save pairing information.';
-      });
-      return false;
-    }
-  }
-  Future<void> _saveDashboardPairing() async {
-    await _saveDashboardPairingPreparation();
-  }
-  Future<void> _clearDashboardAddress() async {
-    if (_dashboardSetupBusy) return;
-    widget.session.activity();
-    setState(() {
-      _savingDashboardAddress = true;
-      _dashboardAddressError = null;
-      _dashboardPairingError = null;
-      _certificateFingerprintError = null;
-      _certificateCheckResult = null;
-      _dashboardPairingStatus = null;
-      _dashboardPairingSucceeded = false;
-    });
-    try {
-      await _repository.clearDashboardAddress();
-      await _certificateFingerprintStore.clear();
-      if (!mounted) return;
-      _dashboardUrl.clear();
-      _pairingCode.clear();
-      _certificateFingerprint.clear();
-      _savingDashboardAddress = false;
-      _openSyncStatus();
-    } catch (_) {
-      if (!mounted) return;
-      setState(() {
-        _savingDashboardAddress = false;
-        _dashboardAddressError = 'Could not clear dashboard pairing.';
-      });
-    }
-  }
-
-  Future<void> _checkDashboardCertificate() async {
-    if (_dashboardSetupBusy) return;
-    widget.session.activity();
-    setState(() {
-      _checkingDashboardCertificate = true;
-      _dashboardAddressError = null;
-      _certificateFingerprintError = null;
-      _certificateCheckResult = null;
-      _dashboardPairingStatus = null;
-      _dashboardPairingSucceeded = false;
-    });
-    final result = await _dashboardCertificateChecker.check(
-      dashboardUrl: _dashboardUrl.text,
-      expectedFingerprint: _certificateFingerprint.text,
-    );
-    if (!mounted) return;
-    setState(() {
-      _checkingDashboardCertificate = false;
-      _certificateCheckResult = result;
-      if (result.status == DashboardCertificateCheckStatus.invalidAddress) {
-        _dashboardAddressError = result.message;
-      } else if (result.status ==
-          DashboardCertificateCheckStatus.invalidFingerprint) {
-        _certificateFingerprintError = result.message;
-      }
-    });
-  }
-
-  Future<void> _pairWithDashboard() async {
-    if (_dashboardSetupBusy) return;
-    final prepared = await _saveDashboardPairingPreparation(stayOnPage: true);
-    if (!prepared || !mounted) return;
-    setState(() {
-      _pairingDashboard = true;
-      _dashboardPairingStatus = null;
-      _dashboardPairingSucceeded = false;
-    });
-    final fingerprint = await _certificateFingerprintStore.read();
-    if (fingerprint == null) {
-      if (!mounted) return;
-      setState(() {
-        _pairingDashboard = false;
-        _certificateFingerprintError =
-            'Enter the full SHA-256 certificate fingerprint.';
-      });
-      return;
-    }
-    final service = DashboardPairingService(
-      repository: _repository,
-      credentialStore: _deviceCredentialStore,
-      requestBuilder: PairingRequestBuilder(
-        appVersion: '0.9.4+19',
-        clock: DateTime.now,
-      ),
-      transport: widget.pairingTransport,
-    );
-    final result = await service.pair(expectedCertificateFingerprint: fingerprint);
-    if (!mounted) return;
-    setState(() {
-      _pairingDashboard = false;
-      _dashboardPairingStatus = result.message;
-      _dashboardPairingSucceeded = result.paired;
-    });
-    if (result.paired) await _openSyncStatus();
-  }
   Future<void> _deleteSelectedRecord() async {
     final record = _selectedRecord;
     if (_deletingRecord || record == null) return;
@@ -519,7 +459,6 @@ class _HotspotWorkspaceState extends State<HotspotWorkspace> {
         onSaved: _openRecords,
       ),
       _Page.sync => _syncPage(context),
-      _Page.dashboardAddress => _dashboardAddressPage(context),
       _Page.pendingChanges => _pendingChangesPage(context),
     },
   );
@@ -998,7 +937,7 @@ class _HotspotWorkspaceState extends State<HotspotWorkspace> {
         IconButton(
           key: const ValueKey('refresh-sync-status'),
           tooltip: 'Refresh',
-          onPressed: _syncLoading ? null : _openSyncStatus,
+          onPressed: _syncLoading || _preparingBatches ? null : _openSyncStatus,
           icon: const Icon(Icons.refresh),
         ),
       ],
@@ -1031,15 +970,19 @@ class _HotspotWorkspaceState extends State<HotspotWorkspace> {
                   style: Theme.of(context).textTheme.headlineSmall,
                 ),
                 const SizedBox(height: 8),
-                const Text(
-                  'The Windows dashboard is not configured yet. Your records remain saved on this phone.',
+                Text(
+                  _syncStatus?['dashboard_status'] == 'Paired'
+                      ? 'This phone is paired with the dashboard. Your records remain saved on this phone.'
+                      : 'New connections will use QR pairing. Your records remain saved on this phone.',
                 ),
                 const SizedBox(height: 12),
-                const Card(
+                Card(
                   child: Padding(
                     padding: EdgeInsets.all(12),
                     child: Text(
-                      'This screen is for checking pending changes only. Sync will stay unavailable until the office dashboard is built and paired.',
+                      SyntheticReviewExport.enabled
+                          ? 'Synthetic test: prepare and review one batch, then send only after laptop approval.'
+                          : 'Check pending changes and prepare them locally. Sending records is not enabled yet.',
                     ),
                   ),
                 ),
@@ -1050,6 +993,57 @@ class _HotspotWorkspaceState extends State<HotspotWorkspace> {
                     ((_syncStatus?['pending_operations'] as num?) ?? 0).toInt(),
                   ),
                 ]),
+                const SizedBox(height: 16),
+                OutlinedButton.icon(
+                  key: const ValueKey('prepare-sync-batches'),
+                  onPressed: _preparingBatches ? null : _prepareSyncBatches,
+                  icon: const Icon(Icons.fact_check_outlined),
+                  label: Padding(
+                    padding: const EdgeInsets.all(12),
+                    child: Text(
+                      _preparingBatches
+                          ? 'Preparing changes...'
+                          : 'Prepare changes locally',
+                    ),
+                  ),
+                ),
+                if (_batchPreparationMessage != null) ...[
+                  const SizedBox(height: 12),
+                  Text(
+                    _batchPreparationMessage!,
+                    key: const ValueKey('batch-preparation-message'),
+                  ),
+                ],
+                if (_batchPreparation != null) ...[
+                  const SizedBox(height: 12),
+                  _summarySection(
+                    context,
+                    'Local preparation',
+                    _batchPreparation!,
+                  ),
+                ],
+                if (_syncReviewManifest != null) ...[
+                  const SizedBox(height: 12),
+                  _syncReviewCard(_syncReviewManifest!),
+                  if (SyntheticReviewExport.enabled) ...[
+                    const Text(
+                      'Synthetic test only. Send after the laptop approves this exact batch.',
+                    ),
+                    OutlinedButton(
+                      onPressed: _testActionRunning
+                          ? null
+                          : () => _reviewedTestAction(send: false),
+                      child: const Text('Prepare private USB review file'),
+                    ),
+                    FilledButton(
+                      onPressed: _testActionRunning
+                          ? null
+                          : () => _reviewedTestAction(send: true),
+                      child: const Text('Send reviewed test batch'),
+                    ),
+                  ],
+                ],
+                if (_testActionMessage != null) Text(_testActionMessage!),
                 const SizedBox(height: 20),
                 _summarySection(context, 'Connection', {
                   'Status': _text(_syncStatus?['dashboard_status']),
@@ -1085,7 +1079,9 @@ class _HotspotWorkspaceState extends State<HotspotWorkspace> {
                   'Dashboard paired': _yesNo(
                     _syncStatus?['dashboard_status'] == 'Paired',
                   ),
-                  'Ready to sync': 'No',
+                  'Ready to sync': SyntheticReviewExport.enabled
+                      ? 'Test only — requires laptop batch approval'
+                      : 'No',
                 }),
                 const SizedBox(height: 20),
                 _summarySection(context, 'Retention safety', {
@@ -1130,27 +1126,21 @@ class _HotspotWorkspaceState extends State<HotspotWorkspace> {
                   ),
                 ),
                 const SizedBox(height: 12),
-                OutlinedButton.icon(
-                  key: const ValueKey('configure-dashboard-address'),
-                  onPressed: () {
-                    _openDashboardAddress();
-                  },
-                  icon: const Icon(Icons.settings_ethernet_outlined),
-                  label: const Padding(
-                    padding: EdgeInsets.all(12),
-                    child: Text('Set pairing information'),
-                  ),
+                const Text(
+                  'New connections will use QR pairing. The scanner is not available in this development build.',
+                  key: ValueKey('qr-pairing-pending'),
                 ),
                 const SizedBox(height: 12),
-                FilledButton.icon(
-                  key: const ValueKey('sync-disabled'),
-                  onPressed: null,
-                  icon: const Icon(Icons.sync_disabled_outlined),
-                  label: const Padding(
-                    padding: EdgeInsets.all(12),
-                    child: Text('Sync unavailable until dashboard setup'),
+                if (!SyntheticReviewExport.enabled)
+                  FilledButton.icon(
+                    key: const ValueKey('sync-disabled'),
+                    onPressed: null,
+                    icon: const Icon(Icons.sync_disabled_outlined),
+                    label: const Padding(
+                      padding: EdgeInsets.all(12),
+                      child: Text('Sync unavailable until dashboard setup'),
+                    ),
                   ),
-                ),
               ],
             ),
     ),
@@ -1216,207 +1206,9 @@ class _HotspotWorkspaceState extends State<HotspotWorkspace> {
     bottomNavigationBar: _footer(),
   );
 
-  Widget _dashboardAddressPage(BuildContext context) => Scaffold(
-    appBar: AppBar(
-      title: const Text('Dashboard pairing'),
-      leading: BackButton(onPressed: _back),
-    ),
-    body: SafeArea(
-      child: ListView(
-        padding: const EdgeInsets.all(20),
-        children: [
-          Text(
-            'Future dashboard connection',
-            style: Theme.of(context).textTheme.headlineSmall,
-          ),
-          const SizedBox(height: 8),
-          const Text(
-            'Save the Windows dashboard HTTPS device API address, six-digit pairing code, and certificate fingerprint. Check the certificate first when possible, then pair the phone. Pairing does not upload, sync, acknowledge or delete records.',
-          ),
-          const SizedBox(height: 20),
-          TextField(
-            key: const ValueKey('dashboard-address'),
-            controller: _dashboardUrl,
-            keyboardType: TextInputType.url,
-            autocorrect: false,
-            decoration: InputDecoration(
-              labelText: 'Dashboard address',
-              hintText: 'https://192.168.1.50:3443/api/v1',
-              errorText: _dashboardAddressError,
-              prefixIcon: const Icon(Icons.link_outlined),
-            ),
-            onChanged: (_) => widget.session.activity(),
-          ),
-          const SizedBox(height: 16),
-          TextField(
-            key: const ValueKey('dashboard-pairing-code'),
-            controller: _pairingCode,
-            keyboardType: TextInputType.number,
-            autocorrect: false,
-            decoration: InputDecoration(
-              labelText: 'Pairing code',
-              helperText: 'Enter exactly 6 digits. Leading zeros are kept.',
-              errorText: _dashboardPairingError,
-              prefixIcon: const Icon(Icons.pin_outlined),
-            ),
-            onChanged: (_) => widget.session.activity(),
-          ),
-          const SizedBox(height: 16),
-          TextField(
-            key: const ValueKey('dashboard-certificate-fingerprint'),
-            controller: _certificateFingerprint,
-            keyboardType: TextInputType.text,
-            autocorrect: false,
-            textCapitalization: TextCapitalization.characters,
-            decoration: InputDecoration(
-              labelText: 'Certificate SHA-256 fingerprint',
-              helperText:
-                  'Paste the full fingerprint shown by the LAN dashboard.',
-              hintText: '64 hex characters',
-              errorText: _certificateFingerprintError,
-              prefixIcon: const Icon(Icons.verified_user_outlined),
-            ),
-            onChanged: (_) => widget.session.activity(),
-          ),
-          const SizedBox(height: 12),
-          OutlinedButton.icon(
-            key: const ValueKey('check-dashboard-certificate'),
-            onPressed:
-                _dashboardSetupBusy
-                ? null
-                : _checkDashboardCertificate,
-            icon: const Icon(Icons.fact_check_outlined),
-            label: Padding(
-              padding: const EdgeInsets.all(12),
-              child: Text(
-                _checkingDashboardCertificate
-                    ? 'Checking certificate...'
-                    : 'Check certificate',
-              ),
-            ),
-          ),
-          if (_certificateCheckResult != null) ...[
-            const SizedBox(height: 12),
-            _certificateCheckCard(context, _certificateCheckResult!),
-          ],
-          const SizedBox(height: 20),
-          FilledButton.icon(
-            key: const ValueKey('save-dashboard-address'),
-            onPressed:
-                _dashboardSetupBusy
-                ? null
-                : _saveDashboardPairing,
-            icon: const Icon(Icons.save_outlined),
-            label: Padding(
-              padding: const EdgeInsets.all(12),
-              child: Text(
-                _savingDashboardAddress
-                    ? 'Saving...'
-                    : 'Save pairing info only',
-              ),
-            ),
-          ),
-          const SizedBox(height: 12),
-          FilledButton.icon(
-            key: const ValueKey('pair-dashboard'),
-            onPressed: _dashboardSetupBusy ? null : _pairWithDashboard,
-            icon: const Icon(Icons.link_outlined),
-            label: Padding(
-              padding: const EdgeInsets.all(12),
-              child: Text(_pairingDashboard ? 'Pairing...' : 'Pair with dashboard'),
-            ),
-          ),
-          if (_dashboardPairingStatus != null) ...[
-            const SizedBox(height: 12),
-            Card(
-              color: _dashboardPairingSucceeded
-                  ? Theme.of(context).colorScheme.primaryContainer
-                  : Theme.of(context).colorScheme.errorContainer,
-              child: Padding(
-                padding: const EdgeInsets.all(12),
-                child: Text(_dashboardPairingStatus!),
-              ),
-            ),
-          ],
-          const SizedBox(height: 12),
-          OutlinedButton.icon(
-            key: const ValueKey('clear-dashboard-address'),
-            onPressed:
-                _dashboardSetupBusy ||
-                    _dashboardUrl.text.isEmpty
-                ? null
-                : _clearDashboardAddress,
-            icon: const Icon(Icons.clear_outlined),
-            label: const Padding(
-              padding: EdgeInsets.all(12),
-              child: Text('Clear saved pairing'),
-            ),
-          ),
-        ],
-      ),
-    ),
-    bottomNavigationBar: _footer(),
-  );
-
   int _value(String key) => (_summary?[key] as num?)?.toInt() ?? 0;
 
   int _syncValue(String key) => (_syncStatus?[key] as num?)?.toInt() ?? 0;
-
-  Widget _certificateCheckCard(
-    BuildContext context,
-    DashboardCertificateCheckResult result,
-  ) {
-    final colorScheme = Theme.of(context).colorScheme;
-    final success = result.status == DashboardCertificateCheckStatus.match;
-    final details = [
-      if (result.fingerprintHint != null)
-        'Fingerprint: ${result.fingerprintHint}',
-      if (result.expectedHint != null) 'Expected: ${result.expectedHint}',
-      if (result.actualHint != null) 'Dashboard: ${result.actualHint}',
-    ];
-    return Card(
-      color: success ? colorScheme.primaryContainer : colorScheme.errorContainer,
-      child: Padding(
-        padding: const EdgeInsets.all(12),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Icon(
-              success
-                  ? Icons.verified_user_outlined
-                  : Icons.warning_amber_outlined,
-              color: success
-                  ? colorScheme.onPrimaryContainer
-                  : colorScheme.onErrorContainer,
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: DefaultTextStyle(
-                style: TextStyle(
-                  color: success
-                      ? colorScheme.onPrimaryContainer
-                      : colorScheme.onErrorContainer,
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      result.message,
-                      style: const TextStyle(fontWeight: FontWeight.w700),
-                    ),
-                    for (final line in details) ...[
-                      const SizedBox(height: 4),
-                      Text(line),
-                    ],
-                  ],
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
 
   Widget _summaryGrid(BuildContext context, List<_SummaryItem> items) =>
       GridView.count(
@@ -1452,6 +1244,57 @@ class _HotspotWorkspaceState extends State<HotspotWorkspace> {
             ),
         ],
       );
+
+  Widget _syncReviewCard(SyncReviewManifest manifest) => Card(
+    child: ExpansionTile(
+      key: const ValueKey('review-first-sync-batch'),
+      title: const Text('Review first batch — no sending'),
+      subtitle: Text(
+        '${manifest.operations.length} changes · ${manifest.byteLength} bytes',
+      ),
+      childrenPadding: const EdgeInsets.all(16),
+      children: [
+        const Text(
+          'Local preview only. No data was sent. Test-data status is unverified. '
+          'The data assistant must check every record before a live test. '
+          'This preview covers only the first batch; later changes remain pending.',
+        ),
+        const SizedBox(height: 12),
+        Text(
+          'Batch: ${manifest.batchId}\nProject: ${manifest.projectId}\n'
+          'Worker: ${manifest.workerId}\nDevice: ${manifest.deviceId}\nBatch SHA-256: ${manifest.bodyHash}',
+        ),
+        const SizedBox(height: 12),
+        for (final operation in manifest.operations)
+          ExpansionTile(
+            key: ValueKey('review-operation-${operation.operationId}'),
+            title: Text(
+              '${operation.sequence}. ${operation.entityType}: ${operation.label}',
+            ),
+            subtitle: Text(
+              '${operation.action} · revision ${operation.revision}',
+            ),
+            childrenPadding: const EdgeInsets.all(12),
+            children: [
+              Text(
+                'Operation: ${operation.operationId}\nEntity: ${operation.entityId}\n'
+                'Payload SHA-256: ${operation.payloadHash}',
+              ),
+              Text(
+                operation.dependencies.isEmpty
+                    ? 'Required parents and earlier revision are covered in this batch.'
+                    : operation.dependencies.join('\n'),
+              ),
+            ],
+          ),
+        const SizedBox(height: 12),
+        const Text(
+          'Refresh clears this preview. Prepare again after any record changes; '
+          'a later upload must match a freshly reviewed batch.',
+        ),
+      ],
+    ),
+  );
 
   Widget _summarySection(
     BuildContext context,
