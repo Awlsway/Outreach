@@ -6,7 +6,7 @@ This checklist defines what must be true before the ANSVK Outreach APK is used w
 
 ## Current APK state
 
-Current Android increment: `0.9.4+19`.
+Current Android increment and installed phone version: `0.9.7+22`. Controlled pairing and APK restart passed on `0.9.6+21`; offline preparation phone review passed on `0.9.7+22`. Upload remains disabled.
 
 Current SQLite schema version: `6`.
 
@@ -62,8 +62,8 @@ This option is not ready because live phone-to-dashboard pairing, upload, acknow
 
 | Area | Required check | Status |
 | --- | --- | --- |
-| Release build | Create a release-signed APK, not a debug-signed APK | Release APK `0.9.4+19` built and manually installed on one phone |
-| App version | Confirm version shown/recorded for handover | Release artifact `0.9.4+19` recorded in 05_build_status.md |
+| Release build | Create a release-signed APK, not a debug-signed APK | Release APK `0.9.7+22` signature verified and installed as an update |
+| App version | Confirm version shown/recorded for handover | Installed `0.9.7+22` artifact recorded in 05_build_status.md |
 | Worker phones | Test install/update on every pilot phone model | One release APK phone test passed; all worker phones still needed |
 | Device passcode | Confirm every worker phone has a device screen lock | Policy agreed; field verification needed |
 | Worker accounts | Confirm each worker creates their own account on their own phone | Policy agreed; field verification needed |

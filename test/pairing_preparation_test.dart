@@ -12,11 +12,13 @@ import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 
 void main() {
   test('builds the accepted v1 pairing request shape', () async {
-    final fixture = jsonDecode(
-      await File(
-        'docs/fixtures/outreach/v1/pairing-success.request.json',
-      ).readAsString(),
-    ) as Map<String, Object?>;
+    final fixture =
+        jsonDecode(
+              await File(
+                'docs/fixtures/outreach/v1/pairing-success.request.json',
+              ).readAsString(),
+            )
+            as Map<String, Object?>;
     final builder = PairingRequestBuilder(
       appVersion: fixture['app_version']! as String,
       clock: () => DateTime.parse(fixture['requested_at']! as String),
@@ -77,11 +79,13 @@ void main() {
   });
 
   test('parses the accepted v1 pairing success without applying it', () async {
-    final fixture = jsonDecode(
-      await File(
-        'docs/fixtures/outreach/v1/pairing-success.response.json',
-      ).readAsString(),
-    ) as Map<String, Object?>;
+    final fixture =
+        jsonDecode(
+              await File(
+                'docs/fixtures/outreach/v1/pairing-success.response.json',
+              ).readAsString(),
+            )
+            as Map<String, Object?>;
 
     final result = PairingResponseResult.parse(
       fixture,
@@ -95,32 +99,42 @@ void main() {
     expect(success.dashboardName, fixture['dashboard_name']);
     expect(success.deviceCredential, fixture['device_credential']);
     expect(success.pairedAt, DateTime.parse(fixture['paired_at']! as String));
-    expect(success.serverTime, DateTime.parse(fixture['server_time']! as String));
-  });
-
-  test('rejects a pairing success for another device before storing anything', () async {
-    final fixture = jsonDecode(
-      await File(
-        'docs/fixtures/outreach/v1/pairing-success.response.json',
-      ).readAsString(),
-    ) as Map<String, Object?>;
-
     expect(
-      () => PairingResponseResult.parse(
-        fixture,
-        expectedDeviceId: 'different-device',
-        expectedWorkerId: fixture['worker_id']! as String,
-      ),
-      throwsFormatException,
+      success.serverTime,
+      DateTime.parse(fixture['server_time']! as String),
     );
   });
 
+  test(
+    'rejects a pairing success for another device before storing anything',
+    () async {
+      final fixture =
+          jsonDecode(
+                await File(
+                  'docs/fixtures/outreach/v1/pairing-success.response.json',
+                ).readAsString(),
+              )
+              as Map<String, Object?>;
+
+      expect(
+        () => PairingResponseResult.parse(
+          fixture,
+          expectedDeviceId: 'different-device',
+          expectedWorkerId: fixture['worker_id']! as String,
+        ),
+        throwsFormatException,
+      );
+    },
+  );
+
   test('parses all accepted v1 pairing error cases', () async {
-    final fixture = jsonDecode(
-      await File(
-        'docs/fixtures/outreach/v1/pairing-errors.json',
-      ).readAsString(),
-    ) as Map<String, Object?>;
+    final fixture =
+        jsonDecode(
+              await File(
+                'docs/fixtures/outreach/v1/pairing-errors.json',
+              ).readAsString(),
+            )
+            as Map<String, Object?>;
     final cases = fixture['cases']! as List<Object?>;
 
     for (final item in cases) {
@@ -182,75 +196,125 @@ void main() {
           repository: repo,
           credentialStore: credentialStore,
           requestBuilder: PairingRequestBuilder(
-            appVersion: '0.9.4+19',
+            appVersion: '0.9.8+23',
             clock: () => DateTime.utc(2026, 9, 16, 12, 1),
           ),
           transport: transport,
         );
 
-    test('stores credential and paired state after a verified success', () async {
-      final transport = _FakePairingTransport.success();
-      final beforePending = await repo.pendingOperations();
+    test(
+      'stores credential and paired state after a verified success',
+      () async {
+        final transport = _FakePairingTransport.success();
+        final beforePending = await repo.pendingOperations();
 
-      final result = await service(transport).pair(
-        expectedCertificateFingerprint: List.filled(64, 'a').join(),
-      );
+        final result = await service(
+          transport,
+        ).pair(expectedCertificateFingerprint: List.filled(64, 'a').join());
 
-      expect(result.status, DashboardPairingAttemptStatus.paired);
-      expect(
-        transport.uri.toString(),
-        'https://192.168.1.50:3443/api/v1/pairing/requests',
-      );
-      expect(transport.expectedFingerprint, List.filled(64, 'A').join());
-      expect(transport.request['pairing_code'], '123456');
-      expect(transport.request['app_version'], '0.9.4+19');
-      expect(await credentialStore.read(), transport.credential);
-      final status = await repo.syncStatus();
-      expect(status['dashboard_status'], 'Paired');
-      expect(status['dashboard_id'], 'dashboard-1');
-      expect(status['dashboard_name'], 'Synthetic Dashboard');
-      expect(status['paired_at'], '2026-09-16T05:31:00.000Z');
-      expect(status['pairing_code_saved'], 0);
-      expect(status['pairing_prepared_at'], isNull);
-      expect(await repo.pendingOperations(), hasLength(beforePending.length));
-    });
+        expect(result.status, DashboardPairingAttemptStatus.paired);
+        expect(
+          transport.uri.toString(),
+          'https://192.168.1.50:3443/api/v1/pairing/requests',
+        );
+        expect(transport.expectedFingerprint, List.filled(64, 'A').join());
+        expect(transport.request['pairing_code'], '123456');
+        expect(transport.request['app_version'], '0.9.8+23');
+        expect(await credentialStore.read(), transport.credential);
+        final status = await repo.syncStatus();
+        expect(status['dashboard_status'], 'Paired');
+        expect(status['dashboard_id'], 'dashboard-1');
+        expect(status['dashboard_name'], 'Synthetic Dashboard');
+        expect(status['paired_at'], '2026-09-16T05:31:00.000Z');
+        expect(status['pairing_code_saved'], 0);
+        expect(status['pairing_prepared_at'], isNull);
+        expect(await repo.pendingOperations(), hasLength(beforePending.length));
+      },
+    );
 
-    test('keeps pairing code and credential empty when dashboard rejects code', () async {
-      final transport = _FakePairingTransport.rejected();
+    test(
+      'saving settings after pairing preserves state and credential across database reopen',
+      () async {
+        final transport = _FakePairingTransport.success();
+        await service(
+          transport,
+        ).pair(expectedCertificateFingerprint: List.filled(64, 'a').join());
+        final paired = await repo.dashboardPairingPreparation();
+        final repeatTransport = _FakePairingTransport.rejected();
+        final repeatResult = await service(
+          repeatTransport,
+        ).pair(expectedCertificateFingerprint: List.filled(64, 'a').join());
+        expect(repeatResult.paired, isFalse);
+        expect(repeatTransport.calls, 0);
+        expect(await credentialStore.read(), transport.credential);
+        expect(await repo.dashboardPairingPreparation(), paired);
+        await repo.saveDashboardPairing(
+          'https://192.168.1.50:3443/api/v1',
+          '654321',
+        );
+        expect(await repo.dashboardPairingPreparation(), paired);
+        await expectLater(
+          repo.saveDashboardPairing(
+            'https://192.168.1.51:3443/api/v1',
+            '654321',
+          ),
+          throwsStateError,
+        );
+        expect(await repo.dashboardPairingPreparation(), paired);
+        expect(await credentialStore.read(), transport.credential);
+        await database.close();
+        database = await AppDatabase.open(
+          factory: databaseFactoryFfi,
+          path: '${directory.path}/test.db',
+        );
+        repo = OutreachRepository(database, currentWorkerId: () => session);
+        expect((await repo.syncStatus())['dashboard_status'], 'Paired');
+        expect((await repo.syncStatus())['pairing_code_saved'], 0);
+      },
+    );
 
-      final result = await service(transport).pair(
-        expectedCertificateFingerprint: List.filled(64, 'b').join(),
-      );
+    test(
+      'keeps pairing code and credential empty when dashboard rejects code',
+      () async {
+        final transport = _FakePairingTransport.rejected();
 
-      expect(result.status, DashboardPairingAttemptStatus.rejected);
-      expect(result.errorCode, 'invalid_pairing_code');
-      expect(await credentialStore.read(), isNull);
-      final status = await repo.syncStatus();
-      expect(status['dashboard_status'], 'Not configured');
-      expect(status['pairing_code_saved'], 1);
-    });
+        final result = await service(
+          transport,
+        ).pair(expectedCertificateFingerprint: List.filled(64, 'b').join());
 
-    test('does not store pairing when certificate-pinned transport blocks', () async {
-      final transport = _FakePairingTransport.blocked();
+        expect(result.status, DashboardPairingAttemptStatus.rejected);
+        expect(result.errorCode, 'invalid_pairing_code');
+        expect(await credentialStore.read(), isNull);
+        final status = await repo.syncStatus();
+        expect(status['dashboard_status'], 'Not configured');
+        expect(status['pairing_code_saved'], 1);
+      },
+    );
 
-      final result = await service(transport).pair(
-        expectedCertificateFingerprint: List.filled(64, 'c').join(),
-      );
+    test(
+      'does not store pairing when certificate-pinned transport blocks',
+      () async {
+        final transport = _FakePairingTransport.blocked();
 
-      expect(result.status, DashboardPairingAttemptStatus.transportBlocked);
-      expect(result.errorCode, 'dashboard_certificate_changed');
-      expect(await credentialStore.read(), isNull);
-      final status = await repo.syncStatus();
-      expect(status['dashboard_status'], 'Not configured');
-      expect(status['pairing_code_saved'], 1);
-    });
+        final result = await service(
+          transport,
+        ).pair(expectedCertificateFingerprint: List.filled(64, 'c').join());
+
+        expect(result.status, DashboardPairingAttemptStatus.transportBlocked);
+        expect(result.errorCode, 'dashboard_certificate_changed');
+        expect(await credentialStore.read(), isNull);
+        final status = await repo.syncStatus();
+        expect(status['dashboard_status'], 'Not configured');
+        expect(status['pairing_code_saved'], 1);
+      },
+    );
 
     test('does not store pairing for mismatched device response', () async {
       final transport = _FakePairingTransport.success(deviceId: 'other-device');
 
-      final result = await service(transport).pair(
-        expectedCertificateFingerprint: List.filled(64, 'd').join(),
-      );
+      final result = await service(
+        transport,
+      ).pair(expectedCertificateFingerprint: List.filled(64, 'd').join());
 
       expect(result.status, DashboardPairingAttemptStatus.invalidResponse);
       expect(await credentialStore.read(), isNull);
@@ -273,8 +337,10 @@ class _FakePairingTransport implements PairingTransport {
   factory _FakePairingTransport.blocked() => _FakePairingTransport._('blocked');
 
   final String mode;
+  int calls = 0;
   final String? overrideDeviceId;
-  final credential = 'credential-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx';
+  final credential =
+      'credential-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx';
   late Uri uri;
   late String expectedFingerprint;
   late Map<String, Object?> request;
@@ -285,6 +351,7 @@ class _FakePairingTransport implements PairingTransport {
     String jsonBody, {
     required String expectedCertificateFingerprint,
   }) async {
+    calls++;
     this.uri = uri;
     expectedFingerprint = expectedCertificateFingerprint;
     request = jsonDecode(jsonBody) as Map<String, Object?>;
@@ -297,7 +364,8 @@ class _FakePairingTransport implements PairingTransport {
     if (mode == 'rejected') {
       return const PairingTransportResponse(
         statusCode: 400,
-        body: '{"ok":false,"request_id":"request-1","error_code":"invalid_pairing_code","message":"Pairing code was not accepted.","retryable":false}',
+        body:
+            '{"ok":false,"request_id":"request-1","error_code":"invalid_pairing_code","message":"Pairing code was not accepted.","retryable":false}',
       );
     }
     return PairingTransportResponse(

@@ -26,6 +26,11 @@ class DashboardPairingService {
     required String expectedCertificateFingerprint,
   }) async {
     final config = await repository.dashboardPairingPreparation();
+    if (config['status'] == 'Paired') {
+      return const DashboardPairingAttemptResult.invalidConfiguration(
+        'This phone is already paired. Clear the existing pairing before pairing again.',
+      );
+    }
     final dashboardUrl = (config['dashboard_url'] as String?)?.trim() ?? '';
     final pairingCode = (config['pairing_code'] as String?)?.trim() ?? '';
     final fingerprint = CertificateFingerprintStore.normalize(
@@ -142,7 +147,10 @@ abstract class PairingTransport {
 }
 
 class PairingTransportResponse {
-  const PairingTransportResponse({required this.statusCode, required this.body});
+  const PairingTransportResponse({
+    required this.statusCode,
+    required this.body,
+  });
 
   final int statusCode;
   final String body;
@@ -156,7 +164,9 @@ class PairingTransportException implements Exception {
 }
 
 class SecureSocketPairingTransport implements PairingTransport {
-  const SecureSocketPairingTransport({this.timeout = const Duration(seconds: 30)});
+  const SecureSocketPairingTransport({
+    this.timeout = const Duration(seconds: 30),
+  });
 
   final Duration timeout;
 
@@ -245,9 +255,9 @@ class SecureSocketPairingTransport implements PairingTransport {
     }
     final header = ascii.decode(responseBytes.sublist(0, headerEnd));
     final statusLine = header.split('\r\n').first;
-    final match = RegExp(r'^HTTP/\d(?:\.\d)?\s+(\d{3})\b').firstMatch(
-      statusLine,
-    );
+    final match = RegExp(
+      r'^HTTP/\d(?:\.\d)?\s+(\d{3})\b',
+    ).firstMatch(statusLine);
     if (match == null) {
       throw const PairingTransportException(
         'invalid_dashboard_response',
@@ -255,7 +265,9 @@ class SecureSocketPairingTransport implements PairingTransport {
       );
     }
     final status = int.parse(match.group(1)!);
-    final body = utf8.decode(responseBytes.sublist(headerEnd + separator.length));
+    final body = utf8.decode(
+      responseBytes.sublist(headerEnd + separator.length),
+    );
     return PairingTransportResponse(statusCode: status, body: body);
   }
 

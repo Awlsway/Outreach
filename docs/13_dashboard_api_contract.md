@@ -34,7 +34,7 @@ The dashboard developer should treat this file as the detailed API contract, and
 
 ## Contract source of truth
 
-This contract is based on the current APK SQLite schema version 6 and repository behavior in app version `0.9.4+19`.
+This contract is based on the current APK SQLite schema version 6 and repository behavior in app version `0.9.7+22`.
 
 The phone stores pending sync data in `audit_operations` and `sync_outbox`.
 
@@ -111,9 +111,11 @@ Example response:
 
 Purpose: register or approve a phone/device before it can sync client data.
 
-The pairing request must be sent only after the APK has verified the dashboard certificate fingerprint. The pairing code is exactly six digits, expires after 10 minutes, is blocked after five incorrect attempts, permits one successful use only, and may be cancelled while unused by LAN Admin, Officer, or Assistant.
+The pairing request must be sent only after the APK has verified the dashboard certificate fingerprint. The pairing code is exactly six digits, expires after 5 minutes, is blocked after five incorrect attempts, permits one successful use only, and may be cancelled while unused by the data assistant. The LAN `Assistant` role is the pilot mapping for data assistant.
 
 Creating the pairing code in the dashboard is the approval. When the APK submits a valid code, the phone pairs immediately and receives its hidden device credential. No second dashboard approval screen is required.
+
+The only pilot transfer is QR Pairing v1, defined in `36_qr_pairing_v1.md`. QR packages the HTTPS address, full certificate fingerprint and this same one-use code. It does not create a second pairing endpoint or credential type. There is no manual-entry fallback.
 
 Example request:
 
@@ -130,7 +132,7 @@ Example request:
   "worker_id": "65d24c79-807e-45a4-ae3b-719214ed8d3e",
   "username": "worker1",
   "pairing_code": "123456",
-  "app_version": "0.9.4+19",
+  "app_version": "0.9.7+22",
   "requested_at": "2026-09-12T08:35:00Z"
 }
 ```
@@ -204,7 +206,7 @@ Example request:
   "device_id": "8c8df2a3-8f46-4f1f-98e6-a2c7f8cbb801",
   "device_created_at": "2026-09-12T07:00:00Z",
   "worker_id": "65d24c79-807e-45a4-ae3b-719214ed8d3e",
-  "app_version": "0.9.4+19",
+  "app_version": "0.9.7+22",
   "batch_created_at": "2026-09-12T08:40:00Z",
   "operations": [
     {
@@ -399,22 +401,31 @@ Example success or partial-success response:
 {
   "ok": true,
   "batch_id": "3cd9e5ad-b812-4942-b1d3-218f24fd4b1b",
+  "request_id": "example-sync-request-1",
   "dashboard_received_at": "2026-09-12T08:40:05Z",
   "accepted": [
     {
       "operation_id": "264a3b9f-6d55-4b7c-9fa2-c523950317c6",
       "entity_type": "hotspot",
       "entity_id": "22246ce5-b7a2-4bb6-868d-bfc2ca96ac15",
-      "revision": 1
+      "revision": 1,
+      "sequence": 1,
+      "accepted_at": "2026-09-12T08:40:05Z",
+      "duplicate": false
     },
     {
       "operation_id": "55b78ba5-862e-494f-b06e-6983888c55f8",
       "entity_type": "encounter",
       "entity_id": "6eb48071-4787-4939-a122-3cd763b2404b",
-      "revision": 1
+      "revision": 1,
+      "sequence": 2,
+      "accepted_at": "2026-09-12T08:40:05Z",
+      "duplicate": false
     }
   ],
-  "rejected": []
+  "rejected": [],
+  "warnings": [],
+  "retry_after_seconds": null
 }
 ```
 
@@ -422,15 +433,19 @@ Example partial rejection response:
 
 ```json
 {
-  "ok": false,
+  "ok": true,
   "batch_id": "3cd9e5ad-b812-4942-b1d3-218f24fd4b1b",
+  "request_id": "example-sync-request-2",
   "dashboard_received_at": "2026-09-12T08:40:05Z",
   "accepted": [
     {
       "operation_id": "264a3b9f-6d55-4b7c-9fa2-c523950317c6",
       "entity_type": "hotspot",
       "entity_id": "22246ce5-b7a2-4bb6-868d-bfc2ca96ac15",
-      "revision": 1
+      "revision": 1,
+      "sequence": 1,
+      "accepted_at": "2026-09-12T08:40:05Z",
+      "duplicate": false
     }
   ],
   "rejected": [
@@ -439,15 +454,19 @@ Example partial rejection response:
       "entity_type": "encounter",
       "entity_id": "6eb48071-4787-4939-a122-3cd763b2404b",
       "revision": 1,
-      "error_code": "temporary_storage_error",
+      "sequence": 2,
+      "error_code": "missing_parent_operation",
       "retryable": true,
-      "message": "Dashboard could not safely save this encounter yet."
+      "message": "Required parent has not been accepted yet."
     }
-  ]
+  ],
+  "warnings": [],
+  "retry_after_seconds": null
 }
 ```
 
 The APK may mark only the listed accepted operation IDs and revisions as acknowledged. Rejected or missing operations must stay pending on the phone.
+`ok: true` means the batch envelope was processed, not that every operation was accepted. Receipt validation must match the batch ID and each returned operation's ID, entity type/ID, revision and sequence against the exact sent batch. HTTP errors or `ok: false` are not acknowledgement authority.
 
 ### Sync status
 
@@ -637,7 +656,7 @@ Recommended first error codes:
 | --- | --- | --- |
 | `not_paired` | Device has not paired with this dashboard | No |
 | `invalid_pairing_code` | Pairing code was wrong or expired | No |
-| `expired_pairing_code` | Pairing code passed its 10-minute validity window | No |
+| `expired_pairing_code` | Pairing code passed its five-minute validity window | No |
 | `pairing_attempts_exhausted` | Pairing code had five incorrect attempts | No |
 | `pairing_code_used` | Pairing code was already successfully used | No |
 | `pairing_code_cancelled` | Pairing code was cancelled while unused | No |
@@ -693,7 +712,7 @@ Outreach reporting must be in a separate Outreach module. It must remain separat
 
 ## Current implementation status
 
-The APK does not yet implement real network sync, a real pairing request or retention cleanup. The APK already stores local operations in an audit/outbox model, has an app identity row with project/device metadata, and has a dashboard connection row reserved for future pairing/address state. The APK can save an HTTPS dashboard API address, exact six-digit pairing code and manually entered certificate SHA-256 fingerprint locally, but this only prepares a later pairing request; it is not pairing and does not permit upload. The full approved fingerprint is stored through secure storage, not SQLite. The APK has a Sync status screen showing pending operation count, pairing preparation and retention safety counts until real pairing/upload code is authorized.
+The APK retains certificate-pinned pairing and sync services, secure device credentials, local identity and audit/outbox storage. The manual pairing form has been removed following the QR-only owner decision. QR payload validation is implemented; camera scanning and enrollment UI are pending. Existing saved pairing state is preserved. Retention cleanup remains disabled. Historical connection runbooks describe earlier test stages, not the current onboarding flow.
 
 Before real APK sync implementation starts, update the sync UI and networking code to this joint contract: HTTPS port `3443`, full certificate SHA-256 fingerprint pinning, six-digit pairing-code exchange for a hidden device credential, `/sync/status` for empty queues, 100-operation and 1 MiB batch limits, 30-second timeout, at most three foreground retries, exact acknowledgement handling and seven-day cleanup only after safe acknowledgement.
 

@@ -13,6 +13,7 @@ if (keystorePropertiesFile.exists()) {
 }
 
 android {
+    buildFeatures { buildConfig = true }
     namespace = "org.ansvk.ansvk_outreach"
     compileSdk = flutter.compileSdkVersion
     ndkVersion = flutter.ndkVersion
@@ -23,8 +24,10 @@ android {
     }
 
     defaultConfig {
+        buildConfigField("boolean", "SYNTHETIC_SYNC_TEST", (providers.gradleProperty("outreachSyntheticSyncTest").orNull == "true").toString())
         // TODO: Specify your own unique Application ID (https://developer.android.com/studio/build/application-id.html).
         applicationId = "org.ansvk.ansvk_outreach"
+        manifestPlaceholders["outreachAppLabel"] = "ANSVK Outreach"
         // You can update the following values to match your application needs.
         // For more information, see: https://flutter.dev/to/review-gradle-config.
         minSdk = flutter.minSdkVersion
@@ -45,6 +48,10 @@ android {
     }
 
     buildTypes {
+        debug {
+            applicationIdSuffix = ".debug"
+            manifestPlaceholders["outreachAppLabel"] = "ANSVK Outreach Test"
+        }
         release {
             if (keystorePropertiesFile.exists()) {
                 signingConfig = signingConfigs.getByName("release")
