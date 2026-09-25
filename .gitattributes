@@ -1,0 +1,2 @@
+# The shared QR contract fixtures are compared byte-for-byte with the LAN repo.
+docs/fixtures/outreach/qr-v1/** text eol=lf

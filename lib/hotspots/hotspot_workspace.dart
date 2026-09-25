@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'dart:async';
 import '../auth/session_controller.dart';
 import '../database/outreach_repository.dart' as data;
@@ -11,6 +12,9 @@ import '../sync/synthetic_review_export.dart';
 import '../sync/configured_manual_sync.dart';
 import '../sync/manual_sync_runner.dart';
 import '../sync/device_credential_store.dart';
+import '../sync/qr_pairing_coordinator.dart';
+import '../sync/qr_pairing_scanner_page.dart';
+import '../sync/debug_dashboard_access_check.dart';
 import 'location_service.dart';
 import 'new_hotspot_form.dart';
 
@@ -82,6 +86,9 @@ class _HotspotWorkspaceState extends State<HotspotWorkspace> {
   String? _recordsError;
   String? _summaryError;
   String? _syncError;
+  String? _qrPairingMessage;
+  bool _checkingDashboardAccess = false;
+  String? _dashboardAccessMessage;
   String? _pendingChangesError;
   int _query = 0;
 
@@ -238,6 +245,61 @@ class _HotspotWorkspaceState extends State<HotspotWorkspace> {
         _syncError = 'Unable to load sync status. Please retry.';
       });
     }
+  }
+
+  Future<void> _scanDashboardQr() async {
+    if (_syncLoading || _syncStatus?['dashboard_status'] == 'Paired') return;
+    widget.session.activity();
+    final scanned = await Navigator.of(context).push<String>(
+      MaterialPageRoute(builder: (_) => const QrPairingScannerPage()),
+    );
+    if (!mounted || scanned == null) return;
+    setState(() {
+      _syncLoading = true;
+      _qrPairingMessage = null;
+    });
+    try {
+      final result = await QrPairingCoordinator(
+        repository: _repository,
+        certificateFingerprintStore: _certificateFingerprintStore,
+        deviceCredentialStore: _deviceCredentialStore,
+        appVersion: '0.9.9+24',
+      ).pairFromQr(scanned);
+      if (!mounted) return;
+      setState(() => _qrPairingMessage = result.message);
+    } on FormatException {
+      if (!mounted) return;
+      setState(
+        () => _qrPairingMessage =
+            'This is not a valid current ANSVK Outreach dashboard QR code.',
+      );
+    } catch (_) {
+      if (!mounted) return;
+      setState(
+        () => _qrPairingMessage =
+            'The phone could not complete dashboard pairing. Please scan a new QR code and try again.',
+      );
+    }
+    if (mounted) await _openSyncStatus();
+  }
+
+  Future<void> _checkDashboardAccess() async {
+    if (_checkingDashboardAccess || !kDebugMode) return;
+    widget.session.activity();
+    setState(() {
+      _checkingDashboardAccess = true;
+      _dashboardAccessMessage = null;
+    });
+    final message = await DebugDashboardAccessCheck(
+      repository: _repository,
+      fingerprintStore: _certificateFingerprintStore,
+      credentialStore: _deviceCredentialStore,
+    ).run();
+    if (!mounted) return;
+    setState(() {
+      _checkingDashboardAccess = false;
+      _dashboardAccessMessage = message;
+    });
   }
 
   Future<void> _prepareSyncBatches() async {
@@ -976,6 +1038,51 @@ class _HotspotWorkspaceState extends State<HotspotWorkspace> {
                       : 'New connections will use QR pairing. Your records remain saved on this phone.',
                 ),
                 const SizedBox(height: 12),
+                if (_syncStatus?['dashboard_status'] != 'Paired') ...[
+                  FilledButton.icon(
+                    key: const ValueKey('scan-dashboard-qr'),
+                    onPressed: _syncLoading ? null : _scanDashboardQr,
+                    icon: const Icon(Icons.qr_code_scanner_outlined),
+                    label: const Padding(
+                      padding: EdgeInsets.all(12),
+                      child: Text('Scan dashboard QR'),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                ],
+                if (_qrPairingMessage != null) ...[
+                  Text(
+                    _qrPairingMessage!,
+                    key: const ValueKey('qr-pairing-message'),
+                  ),
+                  const SizedBox(height: 12),
+                ],
+                if (kDebugMode &&
+                    _syncStatus?['dashboard_status'] == 'Paired') ...[
+                  OutlinedButton.icon(
+                    key: const ValueKey('check-dashboard-access'),
+                    onPressed: _checkingDashboardAccess
+                        ? null
+                        : _checkDashboardAccess,
+                    icon: const Icon(Icons.wifi_tethering_outlined),
+                    label: Padding(
+                      padding: const EdgeInsets.all(12),
+                      child: Text(
+                        _checkingDashboardAccess
+                            ? 'Checking dashboard access...'
+                            : 'Check dashboard access (test)',
+                      ),
+                    ),
+                  ),
+                  if (_dashboardAccessMessage != null) ...[
+                    const SizedBox(height: 12),
+                    Text(
+                      _dashboardAccessMessage!,
+                      key: const ValueKey('dashboard-access-message'),
+                    ),
+                  ],
+                  const SizedBox(height: 12),
+                ],
                 Card(
                   child: Padding(
                     padding: EdgeInsets.all(12),
@@ -1127,7 +1234,7 @@ class _HotspotWorkspaceState extends State<HotspotWorkspace> {
                 ),
                 const SizedBox(height: 12),
                 const Text(
-                  'New connections will use QR pairing. The scanner is not available in this development build.',
+                  'To connect a new phone, scan the QR code shown by the data assistant on the dashboard.',
                   key: ValueKey('qr-pairing-pending'),
                 ),
                 const SizedBox(height: 12),

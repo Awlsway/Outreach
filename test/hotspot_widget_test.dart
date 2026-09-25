@@ -232,6 +232,7 @@ void main() {
       findsOneWidget,
     );
     expect(find.text('Pending changes'), findsOneWidget);
+    expect(find.byKey(const ValueKey('scan-dashboard-qr')), findsOneWidget);
     expect(find.text('3'), findsOneWidget);
     final beforePreparation = await tester.runAsync(repo.pendingOperations);
     await tap(tester, find.byKey(const ValueKey('prepare-sync-batches')));
