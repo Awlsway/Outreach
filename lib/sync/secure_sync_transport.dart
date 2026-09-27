@@ -7,6 +7,7 @@ import 'dashboard_certificate_checker.dart';
 import 'device_credential_store.dart';
 import 'manual_sync_runner.dart';
 import 'sync_batch_builder.dart';
+import 'sync_run_control.dart';
 
 abstract interface class SyncHttpsConnection {
   List<int> get certificateDer;
@@ -21,7 +22,7 @@ abstract interface class SyncHttpsConnection {
 
 typedef SyncHttpsConnector = Future<SyncHttpsConnection> Function(Uri uri);
 
-/// Not wired into worker UI. Checks the peer before sending any HTTP secrets.
+/// Checks the peer before sending any HTTP secrets on that same connection.
 class SecureSyncTransport implements SyncBatchTransport {
   SecureSyncTransport({
     required this.baseUri,
@@ -30,6 +31,7 @@ class SecureSyncTransport implements SyncBatchTransport {
     SyncHttpsConnector? connector,
     this.timeout = const Duration(seconds: 30),
     this.beforeSend,
+    this.control,
   }) : _connector = connector ?? _connect;
   final Uri baseUri;
   final String fingerprint;
@@ -37,6 +39,7 @@ class SecureSyncTransport implements SyncBatchTransport {
   final SyncHttpsConnector _connector;
   final Duration timeout;
   final Future<void> Function()? beforeSend;
+  final SyncRunControl? control;
 
   @override
   Future<SyncBatchReply> send(PreparedSyncBatch batch) {
@@ -68,18 +71,21 @@ class SecureSyncTransport implements SyncBatchTransport {
     SyncHttpsConnection? connection;
     var expired = false;
     try {
-      return await (() async {
+      final request = (() async {
         final peer = await _connector(uri);
         connection = peer;
         if (expired) {
           peer.close();
           throw TimeoutException('Sync timed out');
         }
+        control?.check();
         final actual = await DashboardCertificateChecker.sha256Hex(
           peer.certificateDer,
         );
         if (expired || actual != expected) {
-          throw StateError('Dashboard certificate mismatch');
+          throw SyncRequestFailure(
+            'Dashboard certificate could not be verified. Ask the data assistant to check the connection.',
+          );
         }
         await beforeSend?.call();
         if (expired) throw TimeoutException('Sync timed out');
@@ -90,6 +96,7 @@ class SecureSyncTransport implements SyncBatchTransport {
           body,
         );
       })().timeout(timeout);
+      return await (control?.interruptible(request) ?? request);
     } finally {
       expired = true;
       connection?.close();

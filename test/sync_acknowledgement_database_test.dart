@@ -109,6 +109,7 @@ void main() {
       ];
       expect(await apply(), 1);
       expect(await repo.pendingOperations(), hasLength(2));
+      expect((await repo.syncStatus())['last_successful_sync_at'], isNull);
     },
   );
 

@@ -66,3 +66,7 @@ Implementation references: [sqflite_sqlcipher](https://pub.dev/packages/sqflite_
 Registration, password verification/storage, authentication, inactivity locking, screens and GPS acquisition are implemented in later increments. Network sync and retention cleanup remain outside this database-only step. createWorkerProfile is infrastructure provisioning only and does not create a usable login.
 
 Android app-private storage, allowBackup=false and SQLCipher database opening are configured. Do not use this development build for real client information until release signing and final pilot checks are complete. Raw connection access is restricted by convention to infrastructure/tests; repository scoping is not a substitute for OS security or the future authentication layer.
+
+## Retention metadata migration 7 (27 September 2026)
+
+Local storage version 7 adds sync_confirmations and last retention counts. Legacy encounter acknowledgements are reconfirmed without changing operation IDs/payloads. Independent wire payload schema remains 6. See 39_seven_day_cleanup.md.

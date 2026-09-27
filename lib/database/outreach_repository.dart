@@ -5,6 +5,7 @@ import 'package:uuid/uuid.dart';
 
 import 'app_database.dart';
 import 'schema.dart';
+import 'retention_cleanup.dart';
 import '../sync/pairing_response.dart';
 import '../sync/sync_acknowledgement.dart';
 import '../sync/sync_batch_builder.dart';
@@ -53,8 +54,12 @@ class OutreachRepository {
 
   static const _retentionKeepDays = 7;
 
-  String _retentionCutoffDay() =>
-      _day(_clock().subtract(const Duration(days: _retentionKeepDays - 1)));
+  String _retentionCutoffDay() {
+    final now = _clock();
+    return _day(
+      DateTime(now.year, now.month, now.day - (_retentionKeepDays - 1)),
+    );
+  }
 
   /// Profile-only infrastructure provisioning (also used by database tests).
   /// UI registration must use AuthService's atomic credential/profile creation.
@@ -356,6 +361,7 @@ class OutreachRepository {
     required PreparedSyncBatch sentBatch,
     required Map<String, Object?> response,
     required int httpStatus,
+    String? expectedDashboardId,
   }) async {
     final owner = _owner;
     final receipt = SyncAcknowledgement.parse(
@@ -402,6 +408,15 @@ class OutreachRepository {
           throw StateError('Batch payload differs from local audit');
         }
       }
+      final destination = (await tx.query(
+        'dashboard_connection',
+        limit: 1,
+      )).single;
+      if (expectedDashboardId != null &&
+          (destination['status'] != 'Paired' ||
+              destination['dashboard_id'] != expectedDashboardId)) {
+        throw StateError('Receipt destination changed');
+      }
       var marked = 0;
       for (final accepted in receipt.accepted) {
         marked += await tx.update(
@@ -411,8 +426,132 @@ class OutreachRepository {
           whereArgs: [accepted.operationId],
         );
       }
+      if (expectedDashboardId != null &&
+          destination['status'] == 'Paired' &&
+          destination['dashboard_id'] is String) {
+        for (final accepted in receipt.accepted) {
+          final op = (sent['operations'] as List).singleWhere(
+            (op) => op['operation_id'] == accepted.operationId,
+          );
+          if (op['entity_type'] != 'encounter') continue;
+          await tx.insert('sync_confirmations', {
+            'operation_id': accepted.operationId,
+            'worker_id': owner,
+            'entity_id': op['entity_id'],
+            'revision': op['revision'],
+            'sequence': op['sequence'],
+            'project_id': identity['project_id'],
+            'device_id': identity['device_id'],
+            'dashboard_id': destination['dashboard_id'],
+            'batch_id': sent['batch_id'],
+            'accepted_at': accepted.acceptedAt.toIso8601String(),
+          }, conflictAlgorithm: ConflictAlgorithm.replace);
+        }
+      }
+      if (receipt.allAccepted) {
+        final pending =
+            (await tx.rawQuery(
+                  '''
+          SELECT COUNT(*) AS total
+          FROM audit_operations a
+          JOIN sync_outbox o USING(operation_id)
+          WHERE a.actor_id = ? AND o.acknowledged_at IS NULL
+          ''',
+                  [owner],
+                )).single['total']
+                as int;
+        if (pending == 0) {
+          await tx.update(
+            'sync_state',
+            {
+              'last_successful_sync_at': receipt.receivedAt
+                  .toUtc()
+                  .toIso8601String(),
+            },
+            where: 'worker_id = ?',
+            whereArgs: [owner],
+          );
+        }
+      }
       if (_owner != owner) throw StateError('Worker session changed');
       return marked;
+    });
+  }
+
+  /// Called only after authenticated foreground Sync. Never enqueues deletion.
+  Future<RetentionCleanupResult> cleanupAcknowledgedEncounters({
+    required String expectedDashboardId,
+    required String expectedProjectId,
+    required String expectedDeviceId,
+    bool Function()? mayContinue,
+  }) async {
+    final owner = _owner;
+    final cutoff = _retentionCutoffDay();
+    final stamp = _clock().toUtc().toIso8601String();
+    void check() {
+      if (_owner != owner || mayContinue?.call() == false) {
+        throw StateError('Cleanup context changed');
+      }
+    }
+
+    return _db.transaction((tx) async {
+      check();
+      final identity = (await tx.query('app_identity', limit: 1)).single;
+      final dashboard = (await tx.query(
+        'dashboard_connection',
+        limit: 1,
+      )).single;
+      if (identity['project_id'] != expectedProjectId ||
+          identity['device_id'] != expectedDeviceId ||
+          dashboard['status'] != 'Paired' ||
+          dashboard['dashboard_id'] != expectedDashboardId) {
+        throw StateError('Cleanup destination changed');
+      }
+      final candidates = await retentionCandidates(
+        tx,
+        owner: owner,
+        cutoff: cutoff,
+        identity: identity,
+        dashboard: dashboard,
+      );
+      var removed = 0;
+      for (final row in candidates.eligible) {
+        check();
+        final args = [row['encounter_id'], owner];
+        await tx.rawDelete(
+          '''DELETE FROM sync_outbox WHERE operation_id IN
+          (SELECT operation_id FROM audit_operations WHERE entity_type='encounter' AND entity_id=? AND actor_id=?)''',
+          args,
+        );
+        await tx.delete(
+          'audit_operations',
+          where: "entity_type='encounter' AND entity_id=? AND actor_id=?",
+          whereArgs: args,
+        );
+        removed += await tx.delete(
+          'encounters',
+          where: 'encounter_id=? AND owner_id=? AND revision=?',
+          whereArgs: [...args, row['revision']],
+        );
+      }
+      await tx.update(
+        'sync_state',
+        {
+          'retention_checked_at': stamp,
+          if (removed > 0) 'retention_cleanup_at': stamp,
+          'retention_last_eligible': candidates.eligible.length,
+          'retention_last_held': candidates.held,
+          'retention_last_removed': removed,
+        },
+        where: 'worker_id=?',
+        whereArgs: [owner],
+      );
+      check();
+      return RetentionCleanupResult(
+        eligible: candidates.eligible.length,
+        held: candidates.held,
+        removed: removed,
+      );
     });
   }
 
@@ -444,29 +583,13 @@ class OutreachRepository {
       'dashboard_connection',
       limit: 1,
     )).single;
-    final retention = (await _db.rawQuery(
-      '''
-        SELECT
-          COUNT(*) AS old_client_records,
-          COALESCE(SUM(CASE WHEN EXISTS (
-            SELECT 1 FROM audit_operations a
-            JOIN sync_outbox o USING(operation_id)
-            WHERE a.entity_type = 'encounter'
-              AND a.entity_id = e.encounter_id
-              AND o.acknowledged_at IS NULL
-          ) THEN 1 ELSE 0 END),0) AS held_unsynced,
-          COALESCE(SUM(CASE WHEN NOT EXISTS (
-            SELECT 1 FROM audit_operations a
-            JOIN sync_outbox o USING(operation_id)
-            WHERE a.entity_type = 'encounter'
-              AND a.entity_id = e.encounter_id
-              AND o.acknowledged_at IS NULL
-          ) THEN 1 ELSE 0 END),0) AS eligible_after_ack
-        FROM encounters e
-        WHERE e.owner_id = ? AND e.visit_date < ?
-        ''',
-      [owner, _retentionCutoffDay()],
-    )).single;
+    final retention = await retentionCandidates(
+      _db,
+      owner: owner,
+      cutoff: _retentionCutoffDay(),
+      identity: identity,
+      dashboard: dashboard,
+    );
     return {
       'pending_operations': pending['total'] ?? 0,
       'pending_workers': pending['workers'] ?? 0,
@@ -480,11 +603,13 @@ class OutreachRepository {
       'retention_cleanup_at': state['retention_cleanup_at'],
       'retention_keep_days': _retentionKeepDays,
       'retention_cutoff_day': _retentionCutoffDay(),
-      'old_client_records': retention['old_client_records'] ?? 0,
-      'old_client_records_held_unsynced': retention['held_unsynced'] ?? 0,
-      'old_client_records_eligible_after_ack':
-          retention['eligible_after_ack'] ?? 0,
-      'retention_cleanup_enabled': 0,
+      'old_client_records': retention.eligible.length + retention.held,
+      'old_client_records_held_unsynced': retention.held,
+      'old_client_records_eligible_after_ack': retention.eligible.length,
+      'retention_cleanup_enabled': 1,
+      'retention_last_eligible': state['retention_last_eligible'],
+      'retention_last_held': state['retention_last_held'],
+      'retention_last_removed': state['retention_last_removed'],
       'project_id': identity['project_id'],
       'project_name': identity['project_name'],
       'device_id': identity['device_id'],

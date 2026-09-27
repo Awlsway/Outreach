@@ -1,3 +1,4 @@
+import 'package:ansvk_outreach/sync/sync_run_control.dart';
 import 'dart:async';
 
 import 'package:ansvk_outreach/sync/dashboard_certificate_checker.dart';
@@ -78,11 +79,56 @@ void main() {
       expect(peer.closed, isTrue);
     },
   );
+  test('Stop closes in-flight connection and ignores late success', () async {
+    final control = SyncRunControl();
+    peer.pending = Completer<SyncBatchReply>();
+    final sending = SecureSyncTransport(
+      baseUri: Uri.parse('https://192.168.1.50:3443/api/v1'),
+      fingerprint: pin,
+      credentialStore: store,
+      control: control,
+      connector: (_) async => peer,
+    ).send(PreparedSyncBatch('{}'));
+    final assertion = expectLater(sending, throwsA(isA<SyncStopped>()));
+    while (peer.requests == 0) {
+      await Future<void>.delayed(Duration.zero);
+    }
+    control.stop();
+    await assertion;
+    expect(peer.closed, isTrue);
+    peer.pending!.complete(const SyncBatchReply(200, {'ok': true}));
+  });
+  test(
+    'Stop during TLS setup closes a late connection without sending secrets',
+    () async {
+      final control = SyncRunControl();
+      final connected = Completer<SyncHttpsConnection>();
+      final entered = Completer<void>();
+      final sending = SecureSyncTransport(
+        baseUri: Uri.parse('https://192.168.1.50:3443/api/v1'),
+        fingerprint: pin,
+        credentialStore: store,
+        control: control,
+        connector: (_) {
+          entered.complete();
+          return connected.future;
+        },
+      ).checkStatus();
+      final assertion = expectLater(sending, throwsA(isA<SyncStopped>()));
+      await entered.future;
+      control.stop();
+      await assertion;
+      connected.complete(peer);
+      await Future<void>.delayed(Duration.zero);
+      expect(peer.closed, isTrue);
+      expect(peer.requests, 0);
+    },
+  );
   test('wrong certificate sends no credential or payload', () async {
     peer.certificateDer = [9];
     await expectLater(
       transport().send(PreparedSyncBatch('{}')),
-      throwsStateError,
+      throwsA(isA<SyncRequestFailure>()),
     );
     expect(peer.requests, 0);
     expect(peer.closed, isTrue);

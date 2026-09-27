@@ -9,7 +9,7 @@ These requirements take precedence over the original notes below.
 - Workers self-register with a username and password on first use.
 - Workers can view, edit, and delete only their own records on their own phone.
 - Audit who creates, edits, and deletes records.
-- Lock after one minute of inactivity.
+- Lock after four minutes of inactivity.
 - The Windows office dashboard is a separate future project. Plan its connection and synchronization interface only in this phase. A data assistant will manage accounts, review data, and generate reports there. Desktop exports are out of scope.
 - Project-manager technology decision: Flutter/Dart with SQLite; see 04_development_specification.md for rationale and implementation defaults.
 

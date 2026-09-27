@@ -8,7 +8,7 @@ class SessionController extends ChangeNotifier {
     : _clock = clock ?? DateTime.now;
   final AuthService auth;
   final DateTime Function() _clock;
-  static const timeout = Duration(minutes: 1);
+  static const timeout = Duration(minutes: 4);
   WorkerIdentity? _worker;
   bool _locked = false;
   bool _hidden = false;

@@ -1,6 +1,6 @@
 # ANSVK Outreach worker guide
 
-This guide explains the current Android APK behavior for outreach workers and the data assistant. The app works offline on the phone. Real dashboard sync is still unavailable in the APK.
+This guide explains the current Android APK behavior for outreach workers and the data assistant. The app works offline on the phone. Ordinary manual Sync is implemented for development testing; production deployment is not yet approved.
 
 ## First use and sign in
 
@@ -10,7 +10,7 @@ This guide explains the current Android APK behavior for outreach workers and th
 4. Remember the password. The app does not have password recovery in the pilot, and unsynced records may be lost if you cannot sign in.
 5. After registration or sign in, the home screen shows the signed-in username at the bottom.
 
-The app locks after one minute of inactivity. Unlock with the same password. You can also use the lock button at the top of the home screen.
+The app locks after four minutes of inactivity. Unlock with the same password. You can also use the lock button at the top of the home screen.
 
 ## Hotspots
 
@@ -86,44 +86,19 @@ Delete is a soft delete. The record disappears from active views and summary, bu
 
 ## Sync status
 
-Open **Sync status** from the home screen.
+Open **Sync status** from the home screen. For first enrollment, ask the data assistant to show **Add phone** on the dashboard and scan its QR. Address, certificate trust and enrollment code come from that QR; there is no manual-entry fallback.
 
-This screen is for checking pending changes and future dashboard setup only. Real sync is not active yet because this APK has not completed controlled live pairing, upload, acknowledgement or cleanup.
+In ordinary builds, connect the phone to the same office network as the dashboard and tap **Sync** once. The app verifies dashboard access, then sends your pending changes in order. It shows batch progress and retries temporary connection failures at most three times per request. Tap **Stop** to stop the current attempt. Confirmed changes remain confirmed; unconfirmed changes stay pending for a later manual Sync. Locking or leaving the app also stops the run.
 
-The screen shows:
+After completion, check **Pending changes** and **Last successful sync**. An empty-queue check sends no records and does not change the previous successful-sync time. Rejected changes stay pending; ask the data assistant to review them. Revoked or retired phones cannot upload. Never uninstall the app just to solve a connection problem, because unsynced records can be lost.
 
-- Pending changes count.
-- Pending change breakdown.
-- Whether a dashboard address is saved.
-- Whether a pairing code is saved.
-- Whether a certificate fingerprint is saved.
-- Whether the phone is ready to request pairing later.
-- Whether the phone is paired.
-- Whether sync is ready.
-- Retention safety counts for old client records.
-- App/project/device identity for future support.
-
-**Ready to sync** remains **No** in this version.
-
-The **Retention safety** section shows whether old client records exist on the phone. Cleanup remains disabled until a verified dashboard acknowledgement flow exists.
-
-The **Pending changes** screen shows operation type, action, revision and time. It does not show full client payload details.
-
-The **Dashboard pairing** screen can save or clear a future local dashboard API address, six-digit pairing code and certificate SHA-256 fingerprint. This is preparation only in the current APK. When real sync is implemented, the phone sync address must use HTTPS on port 3443, for example:
-
-`https://192.168.1.50:3443/api/v1`
-
-The **Check certificate** button can test whether the dashboard HTTPS certificate matches the entered SHA-256 fingerprint. This check does not pair the phone, upload data, acknowledge data or delete records.
-
-Saving pairing information stores the address, six-digit code and approved fingerprint for later setup only. It does not pair the phone, upload data, acknowledge data or delete records.
-
-The APK now has a controlled **Pair with dashboard** action that can send the pairing request only through the certificate-pinned pairing service. Pairing stores the hidden device credential and marks the phone paired after a verified success. It still does not upload records, acknowledge records, enable Ready to sync, or delete old client data.
+The screen also shows connection details, pending change types, app/project identity and retention safety. After successful Sync, old client records are removed only when the dashboard has confirmed every revision. Today and the previous six dates remain. Records without complete confirmation are kept; hotspots remain on the phone and the dashboard keeps full history. Check retention for the last check, removed and held counts. The optional **Prepare changes locally** action only validates and reviews data; it does not send anything. Private export and reviewed-test sending controls exist only in explicitly configured synthetic test builds.
 
 ## Important limitations
 
 - Do not use this development build for real client information yet.
-- Real dashboard sync is not active in this APK.
-- The app will not remove old client records until real dashboard acknowledgement exists.
+- Ordinary Sync passed synthetic phone testing; pilot/release gates remain.
+- Local cleanup requires complete dashboard confirmation; unsynced or uncertain records are retained.
 - Password recovery is not implemented.
 - Database encryption is enabled in Android builds, but recovery remains suspended for the first pilot.
 - Uninstalling the app or clearing app data can remove unsynced local records.

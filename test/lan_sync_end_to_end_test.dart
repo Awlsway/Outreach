@@ -167,17 +167,30 @@ void main() {
           );
         }
 
+        final adminPassword =
+            'Synthetic-${DateTime.now().microsecondsSinceEpoch}-Only!';
         final setup = await post('/api/setup-first-admin', {
           'username': 'synthetic.dart.admin@example.org',
           'name': 'Synthetic Dart Admin',
-          'password':
-              'Synthetic-${DateTime.now().microsecondsSinceEpoch}-Only!',
+          'password': adminPassword,
         });
         expect(setup.status, 200);
+        expect(
+          (await post('/api/outreach/pairing-codes', {}, setup.cookie)).status,
+          403,
+        );
+        bridge.stdin.writeln('{"action":"set-assistant"}');
+        await bridge.stdin.flush();
+        expect((await next())['assistantReady'], true);
+        final assistant = await post('/api/login', {
+          'username': 'synthetic.dart.admin@example.org',
+          'password': adminPassword,
+        });
+        expect(assistant.status, 200);
         final issued = await post(
           '/api/outreach/pairing-codes',
           {},
-          setup.cookie,
+          assistant.cookie,
         );
         expect(issued.status, 201);
         final code = issued.json['pairing']['pairing_code'] as String;
@@ -214,6 +227,16 @@ void main() {
         final initial = await repo.pendingOperations();
         final reviewed = await ReviewedSyncPlan.prepare(repo, builder);
         final replayBatch = reviewed.batches.first;
+        if (!restricted) {
+          final unsupported =
+              jsonDecode(replayBatch.jsonBody) as Map<String, dynamic>;
+          unsupported['schema_version'] = 7;
+          final denied = await statusTransport.send(
+            PreparedSyncBatch(jsonEncode(unsupported)),
+          );
+          expect(denied.httpStatus, 422);
+          expect(denied.response['error_code'], 'unsupported_schema_version');
+        }
         if (restricted) {
           expect((await statusTransport.send(replayBatch)).httpStatus, 403);
           expect(await repo.pendingOperations(), initial);
@@ -259,6 +282,9 @@ void main() {
           ),
           0,
         );
+        final priorSuccess = (await repo
+            .syncStatus())['last_successful_sync_at'];
+        expect(priorSuccess, isNotNull);
         await repo.updateEncounter(encounter, {
           'remark': 'Synthetic revision',
         }, expectedRevision: 1);
@@ -298,7 +324,10 @@ void main() {
         expect(inspected['matching'], isTrue);
         expect(inspected['operationCount'], restricted ? 3 : 5);
         expect(inspected['verifiedBackup'], isTrue);
-        expect((await repo.syncStatus())['last_successful_sync_at'], isNull);
+        expect(
+          (await repo.syncStatus())['last_successful_sync_at'],
+          restricted ? equals(priorSuccess) : isNotNull,
+        );
         bridge.stdin.writeln('{"action":"stop"}');
         expect((await next())['stopped'], isTrue);
         await bridge.stdin.close();

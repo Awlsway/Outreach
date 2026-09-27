@@ -29,6 +29,14 @@ try {
   for await (const line of readline.createInterface({input: process.stdin})) {
     const command = JSON.parse(line);
     if (command.action === 'stop') { await stop(); write({stopped: true}); break; }
+    if (command.action === 'set-assistant') {
+      const usersPath = path.join(harness.root, 'app', 'server', 'data', 'users.json');
+      const users = JSON.parse(fs.readFileSync(usersPath, 'utf8'));
+      if (users.length !== 1 || users[0].username !== 'synthetic.dart.admin@example.org') throw new Error('Unexpected isolated test fixture');
+      users[0].role = 'assistant';
+      fs.writeFileSync(usersPath, JSON.stringify(users), {mode: 0o600});
+      write({assistantReady: true}); continue;
+    }
     if (command.action === 'approve' && initialApproval) {
       const batch = JSON.parse(command.body);
       harness.admission.install({...initialApproval, batch: {

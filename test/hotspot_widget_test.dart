@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:ansvk_outreach/app.dart';
+import 'package:ansvk_outreach/app_build_version.dart';
 import 'package:ansvk_outreach/auth/auth_service.dart';
 import 'package:ansvk_outreach/auth/session_controller.dart';
 import 'package:ansvk_outreach/database/app_database.dart';
@@ -18,6 +19,11 @@ void main() {
   late TestLocationGateway gps;
   late OutreachRepository repo;
   setUp(() async {
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(
+          AppBuildVersion.channel,
+          (_) async => '0.9.10+25',
+        );
     db = await AppDatabase.open(
       factory: databaseFactoryFfi,
       path: inMemoryDatabasePath,
@@ -30,28 +36,23 @@ void main() {
     );
   });
   tearDown(() async {
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(AppBuildVersion.channel, null);
     session.dispose();
     await db.close();
   });
 
   Future<void> flush(WidgetTester tester) async {
-    await tester.runAsync(() async {
-      // Drain serialized SQLite work and its Dart completion callbacks.
-      for (var i = 0; i < 8; i++) {
-        await db.connection.rawQuery('SELECT 1');
-      }
-    });
-    await tester.pump();
-  }
-
-  Future<void> tap(WidgetTester tester, Finder finder) async {
-    FocusManager.instance.primaryFocus?.unfocus();
-    await tester.pump();
-    await tester.ensureVisible(finder);
-    await tester.pump(const Duration(milliseconds: 300));
-    await tester.tap(finder);
-    await flush(tester);
-    await tester.pump(const Duration(milliseconds: 300));
+    // Native metadata can complete at a frame boundary before SQLite work
+    // starts. Drain both stages instead of assuming all I/O starts on the tap.
+    for (var round = 0; round < 3; round++) {
+      await tester.runAsync(() async {
+        for (var i = 0; i < 8; i++) {
+          await db.connection.rawQuery('SELECT 1');
+        }
+      });
+      await tester.pump();
+    }
   }
 
   Finder visibleListScrollable() => find
@@ -60,6 +61,24 @@ void main() {
         matching: find.byType(Scrollable),
       )
       .first;
+
+  Future<void> tap(WidgetTester tester, Finder finder) async {
+    FocusManager.instance.primaryFocus?.unfocus();
+    await tester.pump();
+    if (finder.evaluate().isEmpty &&
+        find.text('Sync status').evaluate().isNotEmpty) {
+      await tester.scrollUntilVisible(
+        finder,
+        200,
+        scrollable: visibleListScrollable(),
+      );
+    }
+    await tester.ensureVisible(finder);
+    await tester.pump(const Duration(milliseconds: 300));
+    await tester.tap(finder);
+    await flush(tester);
+    await tester.pump(const Duration(milliseconds: 300));
+  }
 
   Future<void> start(WidgetTester tester) async {
     await tester.runAsync(
@@ -228,12 +247,23 @@ void main() {
     expect(find.text('Sync status'), findsOneWidget);
     expect(find.text('Desktop connection'), findsOneWidget);
     expect(
-      find.textContaining('Sending records is not enabled yet'),
+      find.textContaining('Tap Sync while connected to the office network'),
       findsOneWidget,
     );
     expect(find.text('Pending changes'), findsOneWidget);
     expect(find.byKey(const ValueKey('scan-dashboard-qr')), findsOneWidget);
     expect(find.text('3'), findsOneWidget);
+    await tester.scrollUntilVisible(
+      find.byKey(const ValueKey('normal-sync')),
+      150,
+      scrollable: visibleListScrollable(),
+    );
+    expect(
+      tester
+          .widget<FilledButton>(find.byKey(const ValueKey('normal-sync')))
+          .onPressed,
+      isNull,
+    );
     final beforePreparation = await tester.runAsync(repo.pendingOperations);
     await tap(tester, find.byKey(const ValueKey('prepare-sync-batches')));
     await flush(tester);
@@ -296,7 +326,7 @@ void main() {
     expect(find.text('Retention safety'), findsOneWidget);
     expect(find.text('Keep days on phone'), findsOneWidget);
     expect(find.text('Old client records'), findsOneWidget);
-    expect(find.text('Held because unsynced'), findsOneWidget);
+    expect(find.text('Held without complete sync proof'), findsOneWidget);
     expect(find.text('Eligible after acknowledgement'), findsOneWidget);
     expect(find.text('Cleanup enabled'), findsOneWidget);
     await tester.scrollUntilVisible(

@@ -1,6 +1,6 @@
 # QR Pairing v1
 
-Status: contract and strict APK parser implemented; dashboard rendering, camera scanning and UI are not yet implemented.
+Status: QR scanning, dashboard display and enrollment passed synthetic phone/dashboard testing. This document records the v1 design; see `05_build_status.md` for later execution evidence. Normal worker Sync and retention cleanup remain separate work.
 
 ## Worker story
 
@@ -24,7 +24,7 @@ The decoded bytes are minified UTF-8 JSON with exactly these fields:
   "protocol_version": 1,
   "project_id": "ansvk_outreach",
   "dashboard_id": "office-dashboard-001",
-  "api_base_url": "https://192.168.1.4:3443/api/v1",
+  "api_base_url": "https://192.0.2.10:3443/api/v1",
   "certificate_sha256": "64-lowercase-hex-characters",
   "pairing_code": "012345",
   "issued_at": "2026-09-23T08:00:00Z",
@@ -32,7 +32,7 @@ The decoded bytes are minified UTF-8 JSON with exactly these fields:
 }
 ```
 
-The total QR text is at most 2 KiB. Unknown or missing fields are rejected. The API URL must be HTTPS on port3443, path `/api/v1`, with no user information, query or fragment. UTC timestamps use `Z` and zero to six fractional digits. Expiry is after issuance and no more than five minutes later. The phone allows at most one minute of future clock skew and rejects an expired payload.
+The address above is an illustrative documentation address, not a phone or dashboard address. A generated QR uses the configured office dashboard address. The total QR text is at most 2 KiB. Unknown or missing fields are rejected. The API URL must be HTTPS on port3443, path `/api/v1`, with no user information, query or fragment. UTC timestamps use `Z` and zero to six fractional digits. Expiry is after issuance and no more than five minutes later. The phone allows at most one minute of future clock skew and rejects an expired payload.
 
 `dashboard_id` uses the existing dashboard-generated identifier and is checked against the successful pairing response; v1 does not impose a new UUID migration. The certificate is the full SHA-256 fingerprint in lowercase hex. The six-digit code preserves leading zeroes.
 
@@ -46,7 +46,7 @@ LAN keeps the existing `/api/v1/pairing/requests` endpoint, hashed code storage,
 
 The APK scanner parses this envelope, shows a simple dashboard/address/expiry preview, then uses the existing certificate-pinned `DashboardPairingService`. It never displays the code to the worker and never persists or logs the QR text/code after the attempt. The permanent credential remains in Android secure storage.
 
-An already-paired APK refuses normal rescanning. Planned replacement/reinstall retires the old device; a lost or compromised device is revoked. Password recovery remains suspended. Owner decision: pairing is QR-only, with no manual-entry fallback. The old manual form and worker-triggered clear-pairing controls have been removed; the scanner is still pending implementation.
+An already-paired APK refuses normal rescanning. Planned replacement/reinstall retires the old device; a lost or compromised device is revoked. Password recovery remains suspended. Owner decision: pairing is QR-only, with no manual-entry fallback. The old manual form and worker-triggered clear-pairing controls have been removed; the scanner is implemented.
 
 ## Security decision
 

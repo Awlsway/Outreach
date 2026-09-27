@@ -10,7 +10,7 @@ import 'schema.dart';
 class AppDatabase {
   AppDatabase._(this.connection);
 
-  static const schemaVersion = 6;
+  static const schemaVersion = 7;
   static const filename = 'ansvk_outreach.db';
 
   /// Infrastructure access only. Screens should use worker-scoped repositories.
@@ -23,15 +23,11 @@ class AppDatabase {
   }) async {
     if (factory != null) {
       final dbPath = path ?? p.join(await factory.getDatabasesPath(), filename);
-      final db = await factory.openDatabase(
-        dbPath,
-        options: _openOptions(),
-      );
+      final db = await factory.openDatabase(dbPath, options: _openOptions());
       return AppDatabase._(db);
     }
 
-    final dbPath =
-        path ?? p.join(await sqlcipher.getDatabasesPath(), filename);
+    final dbPath = path ?? p.join(await sqlcipher.getDatabasesPath(), filename);
     final passphrase = await (keyStore ?? DatabaseKeyStore()).readOrCreate();
     final db = await _openEncryptedWithMigration(dbPath, passphrase);
     return AppDatabase._(db);
@@ -95,10 +91,10 @@ class AppDatabase {
       await plain.rawQuery(
         "SELECT name FROM sqlite_master WHERE type = 'table' LIMIT 1",
       );
-      await plain.execute(
-        'ATTACH DATABASE ? AS encrypted KEY ?',
-        [tempPath, passphrase],
-      );
+      await plain.execute('ATTACH DATABASE ? AS encrypted KEY ?', [
+        tempPath,
+        passphrase,
+      ]);
       await plain.rawQuery("SELECT sqlcipher_export('encrypted')");
       await plain.execute('PRAGMA encrypted.user_version = $schemaVersion');
       await plain.execute('DETACH DATABASE encrypted');

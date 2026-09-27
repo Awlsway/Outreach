@@ -174,17 +174,17 @@ void main() {
   });
 
   testWidgets(
-    'one minute locks, activity resets timer and locked content is inaccessible',
+    'four minutes locks, activity resets timer and locked content is inaccessible',
     (tester) async {
       await tester.runAsync(
         () => session.signIn('Alice', 'password1', register: true),
       );
       await tester.pumpWidget(OutreachApp(session: session, hasAccounts: true));
       session.activity();
-      await tester.pump(const Duration(seconds: 59));
+      await tester.pump(const Duration(minutes: 3, seconds: 59));
       expect(find.text('You are signed in'), findsOneWidget);
       session.activity();
-      await tester.pump(const Duration(seconds: 59));
+      await tester.pump(const Duration(minutes: 3, seconds: 59));
       expect(session.locked, isFalse);
       await tester.pump(const Duration(seconds: 1));
       expect(find.text('App locked'), findsOneWidget);

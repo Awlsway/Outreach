@@ -2,7 +2,7 @@ import 'dart:convert';
 
 import 'package:uuid/uuid.dart';
 
-import '../database/app_database.dart';
+import 'sync_protocol.dart';
 import '../database/schema.dart';
 
 /// Offline preparation only: no transport, credentials or database writes.
@@ -111,7 +111,7 @@ class SyncBatchBuilder {
             'protocol_version': 1,
             'project_id': appIdentity['project_id'],
             'project_name': appIdentity['project_name'],
-            'schema_version': AppDatabase.schemaVersion,
+            'schema_version': syncPayloadSchemaVersion,
             'app_version': appVersion,
             'batch_id': batchId,
             'device_id': appIdentity['device_id'],

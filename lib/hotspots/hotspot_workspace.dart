@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
 import 'dart:async';
+import '../app_build_version.dart';
 import '../auth/session_controller.dart';
 import '../database/outreach_repository.dart' as data;
 import '../encounters/encounter_form.dart';
@@ -11,6 +12,8 @@ import '../sync/reviewed_sync_plan.dart';
 import '../sync/synthetic_review_export.dart';
 import '../sync/configured_manual_sync.dart';
 import '../sync/manual_sync_runner.dart';
+import '../sync/sync_run_control.dart';
+import '../sync/secure_sync_transport.dart';
 import '../sync/device_credential_store.dart';
 import '../sync/qr_pairing_coordinator.dart';
 import '../sync/qr_pairing_scanner_page.dart';
@@ -41,11 +44,13 @@ class HotspotWorkspace extends StatefulWidget {
     required this.location,
     this.certificateFingerprintStore,
     this.deviceCredentialStore,
+    this.syncConnector,
   });
   final SessionController session;
   final HotspotLocationService location;
   final CertificateFingerprintStore? certificateFingerprintStore;
   final DeviceCredentialStore? deviceCredentialStore;
+  final SyncHttpsConnector? syncConnector;
   @override
   State<HotspotWorkspace> createState() => _HotspotWorkspaceState();
 }
@@ -74,6 +79,8 @@ class _HotspotWorkspaceState extends State<HotspotWorkspace> {
   bool _syncLoading = false;
   bool _preparingBatches = false;
   bool _testActionRunning = false;
+  SyncRunControl? _syncControl;
+  String? _normalSyncMessage;
   String? _testActionMessage;
   Map<String, int>? _batchPreparation;
   String? _batchPreparationMessage;
@@ -99,6 +106,7 @@ class _HotspotWorkspaceState extends State<HotspotWorkspace> {
   }
 
   void _invalidateReviewOnLock() {
+    if (widget.session.currentWorkerId == null) _syncControl?.stop();
     if (_reviewedPlan != null &&
         widget.session.currentWorkerId != _reviewedPlan!.workerId) {
       setState(() {
@@ -112,6 +120,7 @@ class _HotspotWorkspaceState extends State<HotspotWorkspace> {
 
   @override
   void dispose() {
+    _syncControl?.stop();
     widget.session.removeListener(_invalidateReviewOnLock);
     _reviewedPlan = null;
     unawaited(SyntheticReviewExport.clear());
@@ -152,6 +161,7 @@ class _HotspotWorkspaceState extends State<HotspotWorkspace> {
   }
 
   void _back() {
+    if (_syncControl != null) return;
     if (_page == _Page.list ||
         _page == _Page.summary ||
         _page == _Page.records ||
@@ -213,7 +223,7 @@ class _HotspotWorkspaceState extends State<HotspotWorkspace> {
   }
 
   Future<void> _openSyncStatus() async {
-    if (_testActionRunning) return;
+    if (_testActionRunning || _syncControl != null) return;
     if (SyntheticReviewExport.enabled) await SyntheticReviewExport.clear();
     if (!mounted) return;
     widget.session.activity();
@@ -247,6 +257,75 @@ class _HotspotWorkspaceState extends State<HotspotWorkspace> {
     }
   }
 
+  Future<void> _normalSync() async {
+    if (_syncControl != null || _testActionRunning || _preparingBatches) return;
+    widget.session.activity();
+    final control = SyncRunControl(
+      onProgress: (message) {
+        if (mounted) setState(() => _normalSyncMessage = message);
+      },
+    );
+    setState(() {
+      _syncControl = control;
+      _normalSyncMessage = 'Preparing sync...';
+      _reviewedPlan = null;
+      _batchPreparation = null;
+      _batchPreparationMessage = null;
+    });
+    try {
+      final result = await ConfiguredManualSync(
+        repository: _repository,
+        fingerprintStore: _certificateFingerprintStore,
+        credentialStore: _deviceCredentialStore,
+        builder: SyncBatchBuilder(
+          appVersion: await AppBuildVersion.read(),
+          clock: DateTime.now,
+        ),
+        connector: widget.syncConnector,
+      ).run(control: control);
+      final status = await _repository.syncStatus();
+      if (!mounted) return;
+      setState(() {
+        _syncStatus = {
+          ...status,
+          'certificate_fingerprint_hint':
+              _syncStatus?['certificate_fingerprint_hint'],
+        };
+        _normalSyncMessage = switch (result.outcome) {
+          ManualSyncOutcome.uploaded =>
+            'Sync complete. Dashboard confirmed ${result.markedOperations} changes.',
+          ManualSyncOutcome.emptyQueue =>
+            'Dashboard access is active. No pending changes; no records were sent.',
+          ManualSyncOutcome.partial =>
+            'Dashboard confirmed ${result.markedOperations} changes. Some changes were rejected and remain pending. Ask the data assistant to review them.',
+          _ =>
+            '${result.message ?? 'Sync stopped.'} Dashboard confirmed ${result.markedOperations} changes. Unconfirmed changes remain pending.',
+        };
+        if ((result.cleanup?.removed ?? 0) > 0) {
+          _records = [];
+          _pendingChanges = [];
+          _selectedRecord = null;
+        }
+        if (result.cleanup != null) {
+          _normalSyncMessage =
+              '$_normalSyncMessage Old client records removed: ${result.cleanup!.removed}. Held: ${result.cleanup!.held}.';
+        } else if (result.cleanupFailed) {
+          _normalSyncMessage =
+              '$_normalSyncMessage Phone cleanup could not finish; records were kept.';
+        }
+      });
+    } catch (_) {
+      if (mounted) {
+        setState(
+          () => _normalSyncMessage =
+              'Unable to refresh sync status. Unconfirmed changes remain pending.',
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _syncControl = null);
+    }
+  }
+
   Future<void> _scanDashboardQr() async {
     if (_syncLoading || _syncStatus?['dashboard_status'] == 'Paired') return;
     widget.session.activity();
@@ -263,7 +342,7 @@ class _HotspotWorkspaceState extends State<HotspotWorkspace> {
         repository: _repository,
         certificateFingerprintStore: _certificateFingerprintStore,
         deviceCredentialStore: _deviceCredentialStore,
-        appVersion: '0.9.9+24',
+        appVersion: await AppBuildVersion.read(),
       ).pairFromQr(scanned);
       if (!mounted) return;
       setState(() => _qrPairingMessage = result.message);
@@ -321,7 +400,10 @@ class _HotspotWorkspaceState extends State<HotspotWorkspace> {
           ? null
           : await ReviewedSyncPlan.prepare(
               _repository,
-              SyncBatchBuilder(appVersion: '0.9.9+24', clock: DateTime.now),
+              SyncBatchBuilder(
+                appVersion: await AppBuildVersion.read(),
+                clock: DateTime.now,
+              ),
             );
       final batches = plan?.batches ?? <PreparedSyncBatch>[];
       if (!mounted) return;
@@ -375,14 +457,28 @@ class _HotspotWorkspaceState extends State<HotspotWorkspace> {
           fingerprintStore: _certificateFingerprintStore,
           credentialStore: _deviceCredentialStore,
           builder: SyncBatchBuilder(
-            appVersion: '0.9.9+24',
+            appVersion: await AppBuildVersion.read(),
             clock: DateTime.now,
           ),
         ).run(reviewedPlan: plan);
         await SyntheticReviewExport.clear();
         if (!mounted) return;
+        data.Row? refreshedSyncStatus;
+        try {
+          refreshedSyncStatus = await _repository.syncStatus();
+        } catch (_) {
+          // Keep the successful receipt message even if refreshing the status
+          // view fails after the acknowledgement was already saved.
+        }
+        if (!mounted) return;
         setState(() {
           _reviewedPlan = null;
+          if (refreshedSyncStatus != null) {
+            _syncStatus = {
+              if (_syncStatus != null) ..._syncStatus!,
+              ...refreshedSyncStatus,
+            };
+          }
           _testActionMessage =
               'Dashboard confirmed ${result.markedOperations} changes. '
               '${result.outcome == ManualSyncOutcome.uploaded || result.outcome == ManualSyncOutcome.batchLimitReached ? 'Reviewed batch finished.' : 'Test stopped; unconfirmed changes remain pending.'}';
@@ -999,7 +1095,9 @@ class _HotspotWorkspaceState extends State<HotspotWorkspace> {
         IconButton(
           key: const ValueKey('refresh-sync-status'),
           tooltip: 'Refresh',
-          onPressed: _syncLoading || _preparingBatches ? null : _openSyncStatus,
+          onPressed: _syncLoading || _preparingBatches || _syncControl != null
+              ? null
+              : _openSyncStatus,
           icon: const Icon(Icons.refresh),
         ),
       ],
@@ -1061,7 +1159,7 @@ class _HotspotWorkspaceState extends State<HotspotWorkspace> {
                     _syncStatus?['dashboard_status'] == 'Paired') ...[
                   OutlinedButton.icon(
                     key: const ValueKey('check-dashboard-access'),
-                    onPressed: _checkingDashboardAccess
+                    onPressed: _checkingDashboardAccess || _syncControl != null
                         ? null
                         : _checkDashboardAccess,
                     icon: const Icon(Icons.wifi_tethering_outlined),
@@ -1089,7 +1187,7 @@ class _HotspotWorkspaceState extends State<HotspotWorkspace> {
                     child: Text(
                       SyntheticReviewExport.enabled
                           ? 'Synthetic test: prepare and review one batch, then send only after laptop approval.'
-                          : 'Check pending changes and prepare them locally. Sending records is not enabled yet.',
+                          : 'Tap Sync while connected to the office network. Your pending changes are sent securely to the dashboard.',
                     ),
                   ),
                 ),
@@ -1101,9 +1199,42 @@ class _HotspotWorkspaceState extends State<HotspotWorkspace> {
                   ),
                 ]),
                 const SizedBox(height: 16),
+                if (!SyntheticReviewExport.enabled) ...[
+                  FilledButton.icon(
+                    key: const ValueKey('normal-sync'),
+                    onPressed:
+                        _syncControl != null ||
+                            _preparingBatches ||
+                            _checkingDashboardAccess ||
+                            _syncStatus?['dashboard_status'] != 'Paired'
+                        ? null
+                        : _normalSync,
+                    icon: const Icon(Icons.sync),
+                    label: Text(_syncControl == null ? 'Sync' : 'Syncing...'),
+                  ),
+                  if (_syncControl != null) ...[
+                    const LinearProgressIndicator(),
+                    OutlinedButton(
+                      key: const ValueKey('stop-sync'),
+                      onPressed: () {
+                        widget.session.activity();
+                        _syncControl?.stop();
+                      },
+                      child: const Text('Stop'),
+                    ),
+                  ],
+                  if (_normalSyncMessage != null)
+                    Text(
+                      _normalSyncMessage!,
+                      key: const ValueKey('normal-sync-message'),
+                    ),
+                  const SizedBox(height: 16),
+                ],
                 OutlinedButton.icon(
                   key: const ValueKey('prepare-sync-batches'),
-                  onPressed: _preparingBatches ? null : _prepareSyncBatches,
+                  onPressed: _preparingBatches || _syncControl != null
+                      ? null
+                      : _prepareSyncBatches,
                   icon: const Icon(Icons.fact_check_outlined),
                   label: Padding(
                     padding: const EdgeInsets.all(12),
@@ -1188,13 +1319,13 @@ class _HotspotWorkspaceState extends State<HotspotWorkspace> {
                   ),
                   'Ready to sync': SyntheticReviewExport.enabled
                       ? 'Test only — requires laptop batch approval'
-                      : 'No',
+                      : _yesNo(_syncStatus?['dashboard_status'] == 'Paired'),
                 }),
                 const SizedBox(height: 20),
                 _summarySection(context, 'Retention safety', {
                   'Keep days on phone': _syncValue('retention_keep_days'),
                   'Old client records': _syncValue('old_client_records'),
-                  'Held because unsynced': _syncValue(
+                  'Held without complete sync proof': _syncValue(
                     'old_client_records_held_unsynced',
                   ),
                   'Eligible after acknowledgement': _syncValue(
@@ -1203,6 +1334,15 @@ class _HotspotWorkspaceState extends State<HotspotWorkspace> {
                   'Cleanup enabled': _yesNo(
                     _syncStatus?['retention_cleanup_enabled'] == 1,
                   ),
+                  'Last retention check': _text(
+                    _syncStatus?['retention_checked_at'],
+                  ),
+                  'Last cleanup': _text(_syncStatus?['retention_cleanup_at']),
+                  'Eligible in last check': _syncValue(
+                    'retention_last_eligible',
+                  ),
+                  'Removed in last check': _syncValue('retention_last_removed'),
+                  'Held in last check': _syncValue('retention_last_held'),
                   'Retention cutoff date': _text(
                     _syncStatus?['retention_cutoff_day'],
                   ),
@@ -1225,7 +1365,7 @@ class _HotspotWorkspaceState extends State<HotspotWorkspace> {
                 const SizedBox(height: 24),
                 OutlinedButton.icon(
                   key: const ValueKey('view-pending-changes'),
-                  onPressed: _openPendingChanges,
+                  onPressed: _syncControl != null ? null : _openPendingChanges,
                   icon: const Icon(Icons.list_alt_outlined),
                   label: const Padding(
                     padding: EdgeInsets.all(12),
@@ -1238,16 +1378,6 @@ class _HotspotWorkspaceState extends State<HotspotWorkspace> {
                   key: ValueKey('qr-pairing-pending'),
                 ),
                 const SizedBox(height: 12),
-                if (!SyntheticReviewExport.enabled)
-                  FilledButton.icon(
-                    key: const ValueKey('sync-disabled'),
-                    onPressed: null,
-                    icon: const Icon(Icons.sync_disabled_outlined),
-                    label: const Padding(
-                      padding: EdgeInsets.all(12),
-                      child: Text('Sync unavailable until dashboard setup'),
-                    ),
-                  ),
               ],
             ),
     ),

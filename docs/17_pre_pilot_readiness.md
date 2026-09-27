@@ -1,19 +1,19 @@
 # Pre-pilot readiness checklist
 
-Status: draft for review, 15 September 2026.
+Status: historical pilot checklist, originally drafted 15 September 2026. For the current synthetic sync evidence and remaining work, see `05_build_status.md` and `38_sync_completion_plan.md`.
 
 This checklist defines what must be true before the ANSVK Outreach APK is used with real client information. It separates the current Android APK from the Windows LAN Outreach foundation so the pilot decision does not accidentally assume live sync exists.
 
 ## Current APK state
 
-Current Android increment and installed phone version: `0.9.7+22`. Controlled pairing and APK restart passed on `0.9.6+21`; offline preparation phone review passed on `0.9.7+22`. Upload remains disabled.
+Installed development phone version on 27 September: `0.9.9+24`, ordinary debug configuration. QR pairing and guarded synthetic client create/update/delete passed. Normal worker Sync passed focused automated checks and ordinary phone acceptance.
 
-Current SQLite schema version: `6`.
+Current local SQLite schema version: `7`; independent sync payload schema version: `6`.
 
-Implemented and phone-tested on the user's connected device:
+Implemented on the user's connected device (phone-tested unless noted):
 
 - Local worker registration and sign-in with username/password.
-- One-minute inactivity lock and background concealment.
+- Four-minute inactivity lock and background concealment (automated tests pass and the update is installed; the four-minute phone wait check is pending).
 - Device-passcode warning before account use.
 - Password recovery suspended warning.
 - Worker-owned data access through the app.
@@ -24,11 +24,11 @@ Implemented and phone-tested on the user's connected device:
 - Today's records list, detail, edit and delete.
 - Local audit/outbox tracking for future sync.
 - Sync Status with pending-operation counts.
-- Future dashboard address, pairing-code and certificate-fingerprint preparation.
-- Retention safety status with cleanup disabled.
+- QR enrollment with the dashboard address and certificate fingerprint supplied by the dashboard.
+- Retention safety status and transactional cleanup after complete acknowledgement proof.
 - SQLCipher database opening for Android builds.
 
-The APK still has no active real Windows dashboard connection. It cannot upload records, receive acknowledgement, mark operations synced, or safely clean old client records.
+The development APK paired with the Windows dashboard and received exact acknowledgements for synthetic worker/hotspot/client create/update/delete operations. Ordinary foreground Sync passed its phone check on a new synthetic client record. Seven-day local client cleanup is implemented with exact destination-bound acknowledgement proof; phone upgrade/reconfirmation acceptance passed; chunk 4 operational/release gates remain pending. See `39_seven_day_cleanup.md`.
 
 ## Pilot decision options
 
@@ -56,7 +56,7 @@ This option needs explicit project acceptance before use.
 
 Use the APK with real client information and office desktop history.
 
-This option is not ready because live phone-to-dashboard pairing, upload, acknowledgement and cleanup are not implemented and verified end to end yet.
+Development pairing, ordinary upload/acknowledgement and retention checks passed. Real-data deployment remains gated by final release/phone checks and office installation, strict machine binding, service, certificate and backup/restore evidence; see `40_final_sync_release_checks.md`.
 
 ## Required checks before any real-client pilot
 
@@ -72,8 +72,8 @@ This option is not ready because live phone-to-dashboard pairing, upload, acknow
 | Offline entry | Confirm hotspot/client/daily/today flows with worker training data | Core flows tested; worker training needed |
 | Privacy | Confirm no cross-worker access through normal app UI | Automated tests pass; multi-phone pilot check needed |
 | Database protection | Confirm SQLCipher migration/fresh install on pilot phones | One development phone passed; pilot phones needed |
-| Sync | Confirm real dashboard pairing/upload/acknowledgement | Certificate check and offline pairing prep implemented; live pairing/upload/acknowledgement not active |
-| Retention cleanup | Confirm cleanup only after dashboard acknowledgement | Status-only implemented; cleanup disabled |
+| Sync | Confirm real dashboard pairing/upload/acknowledgement | QR and ordinary foreground Sync passed with synthetic data; office deployment gates pending |
+| Retention cleanup | Confirm cleanup only after dashboard acknowledgement | Exact proof-based cleanup and migration checks passed; synthetic phone reconfirmation passed |
 | Reporting | Confirm office review/reporting workflow | LAN Outreach foundation exists; office workflow not verified with phone data |
 
 ## Minimum phone test script before handover
@@ -88,8 +88,8 @@ Run this on each pilot phone using dummy records first:
 6. Create a second record for the same client code at a different hotspot, if a second hotspot exists, and confirm Daily summary counts one unique person.
 7. Edit one record and confirm the change appears in Today's records.
 8. Delete one dummy record and confirm it disappears from Today's records and Daily summary.
-9. Lock or wait one minute and confirm the app hides data until the password is entered.
-10. Open Sync Status and confirm pending changes are visible, real sync is unavailable, and Retention safety shows cleanup disabled.
+9. Lock or wait four minutes and confirm the app hides data until the password is entered.
+10. Pair with the intended test dashboard using QR, tap ordinary Sync and confirm pending count, receipt time and retention result. Use synthetic records until deployment gates are accepted.
 11. Close and reopen the app and confirm saved dummy data remains visible after sign-in.
 
 ## Dashboard handover documents
@@ -115,4 +115,3 @@ A future dashboard developer must read these files before building the desktop s
 Keep the current APK in development/pilot-preparation status until release signing and the all-phone dummy-data test are complete. The release-signing setup plan is documented in 18_release_signing_plan.md.
 
 Do not use it for real client information as a full program system until the Windows dashboard can receive data and acknowledge exact operations from the APK. If the project chooses a local-only pilot before live sync, document that decision separately and train workers on the data-loss limits before deployment.
-

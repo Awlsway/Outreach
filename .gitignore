@@ -44,6 +44,13 @@ migrate_working_dir/
 .env.*
 !.env.example
 
+# Private signing and TLS material
+/android/key.properties
+*.jks
+*.keystore
+*.pem
+*.key
+
 # Symbolication related
 app.*.symbols
 

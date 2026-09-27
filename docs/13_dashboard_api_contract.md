@@ -34,7 +34,7 @@ The dashboard developer should treat this file as the detailed API contract, and
 
 ## Contract source of truth
 
-This contract is based on the current APK SQLite schema version 6 and repository behavior in app version `0.9.7+22`.
+Synced payload schema remains version 6. APK local SQLite storage version 7 adds local-only confirmation/retention metadata and is independent of this wire version and LAN internal storage. LAN PM approved this separation on 27 September 2026; API/protocol v1, entity shapes, examples and fixture bytes/checksums are unchanged.
 
 The phone stores pending sync data in `audit_operations` and `sync_outbox`.
 
@@ -181,7 +181,7 @@ Batch header fields:
 | `api_version` | API version; first version is `1` |
 | `protocol` | Fixed protocol label `ansvk-outreach-sync` |
 | `protocol_version` | First protocol version is `1` |
-| `schema_version` | APK SQLite schema version; first supported version is `6` |
+| `schema_version` | Synced payload schema version; supported v1 value is `6`, independent of APK storage |
 | `batch_id` | Generated UUID for this send attempt |
 | `project_id` | From APK `app_identity.project_id`; currently `ansvk_outreach` |
 | `project_name` | From APK `app_identity.project_name`; currently `ANSVK Outreach` |
@@ -537,11 +537,11 @@ Sync state fields:
 | Field | Notes |
 | --- | --- |
 | `worker_id` | Worker ID for the local sync state row |
-| `last_successful_sync_at` | Future dashboard acknowledgement timestamp for the worker |
+| `last_successful_sync_at` | Locally saved dashboard receipt time, updated only after every pending operation for this worker is acknowledged |
 | `retention_checked_at` | Reserved for the last future retention-check timestamp |
 | `retention_cleanup_at` | Reserved for the last future retention-cleanup timestamp |
 
-The current APK uses sync state to show status only. It does not mark operations acknowledged or clean old records because live dashboard acknowledgement is not enabled or verified yet.
+The APK applies exact dashboard acknowledgements transactionally and records a completion time when the worker has no pending operations. Ordinary foreground Sync is now wired to this flow. Local retention cleanup uses exact destination-specific proof; see `39_seven_day_cleanup.md`.
 
 Worker payload fields:
 
@@ -642,7 +642,7 @@ The phone may remove old client records only after dashboard acknowledgement. Th
 
 Hotspot data remains on the phone. Client/encounter data older than the retention window can be cleaned up later only after the phone knows the latest operation was accepted by the dashboard.
 
-The current APK keeps today and the six preceding local calendar dates on the phone. Older client records are counted in Sync Status, but cleanup remains disabled until real dashboard acknowledgement and cleanup implementation exist.
+After authenticated successful foreground Sync, keep today and six preceding local dates. Older encounters are removed only with exact current-destination acknowledgement proof for every revision; uncertain records are kept. Hotspots and LAN history remain. See `39_seven_day_cleanup.md`.
 
 Server records are not automatically deleted during the pilot. Manual server deletion requires Admin approval, verified backup and an audit entry. The server does not inherit the phone's seven-day cleanup rule.
 
@@ -712,7 +712,6 @@ Outreach reporting must be in a separate Outreach module. It must remain separat
 
 ## Current implementation status
 
-The APK retains certificate-pinned pairing and sync services, secure device credentials, local identity and audit/outbox storage. The manual pairing form has been removed following the QR-only owner decision. QR payload validation is implemented; camera scanning and enrollment UI are pending. Existing saved pairing state is preserved. Retention cleanup remains disabled. Historical connection runbooks describe earlier test stages, not the current onboarding flow.
+The APK retains certificate-pinned pairing and sync services, secure device credentials, local identity and audit/outbox storage. The manual pairing form has been removed following the QR-only owner decision. QR scanning and enrollment have passed synthetic phone/dashboard testing. Existing saved pairing state is preserved. A guarded test build has uploaded synthetic changes; ordinary worker Sync and safe local retention are implemented for development testing; pilot/release approval remains pending. Historical connection runbooks describe earlier test stages, not the current onboarding flow.
 
-Before real APK sync implementation starts, update the sync UI and networking code to this joint contract: HTTPS port `3443`, full certificate SHA-256 fingerprint pinning, six-digit pairing-code exchange for a hidden device credential, `/sync/status` for empty queues, 100-operation and 1 MiB batch limits, 30-second timeout, at most three foreground retries, exact acknowledgement handling and seven-day cleanup only after safe acknowledgement.
-
+For normal worker Sync, complete the remaining parts of this joint contract: HTTPS port `3443`, full certificate SHA-256 fingerprint pinning, six-digit pairing-code exchange for a hidden device credential, `/sync/status` for empty queues, 100-operation and 1 MiB batch limits, 30-second request timeout, at most three foreground retries with visible progress and Stop, exact acknowledgement handling and seven-day cleanup only after safe acknowledgement. Existing implemented pieces should be reused.

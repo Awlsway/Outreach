@@ -176,4 +176,30 @@ Future<void> migrate(Database db, int from, int to) async {
       'ALTER TABLE sync_state ADD COLUMN retention_cleanup_at TEXT',
     );
   }
+  if (from < 7 && to >= 7) {
+    await db.execute('''CREATE TABLE sync_confirmations (
+      operation_id TEXT PRIMARY KEY NOT NULL,
+      worker_id TEXT NOT NULL REFERENCES workers(worker_id),
+      entity_id TEXT NOT NULL,
+      revision INTEGER NOT NULL CHECK(revision > 0),
+      sequence INTEGER NOT NULL,
+      project_id TEXT NOT NULL,
+      device_id TEXT NOT NULL,
+      dashboard_id TEXT NOT NULL,
+      batch_id TEXT NOT NULL,
+      accepted_at TEXT NOT NULL
+    )''');
+    for (final field in ['eligible', 'held', 'removed']) {
+      await db.execute(
+        'ALTER TABLE sync_state ADD COLUMN retention_last_$field INTEGER NOT NULL DEFAULT 0',
+      );
+    }
+    // Legacy acknowledgements have no destination proof. Reconfirm immutable
+    // encounter operations through duplicate-safe Sync; do not invent proof.
+    await db.execute(
+      '''UPDATE sync_outbox SET acknowledged_at = NULL
+      WHERE acknowledged_at IS NOT NULL AND operation_id IN
+        (SELECT operation_id FROM audit_operations WHERE entity_type = 'encounter')''',
+    );
+  }
 }

@@ -1,8 +1,10 @@
 import '../database/outreach_repository.dart';
+import '../database/retention_cleanup.dart';
 import 'sync_acknowledgement.dart';
 import 'sync_batch_builder.dart';
+import 'sync_run_control.dart';
 
-/// Testable orchestration only. No production transport or UI is wired here.
+/// Sequential, testable upload orchestration with exact receipt application.
 abstract interface class SyncBatchTransport {
   Future<SyncBatchReply> send(PreparedSyncBatch batch);
 }
@@ -22,9 +24,18 @@ enum ManualSyncOutcome {
 }
 
 class ManualSyncResult {
-  const ManualSyncResult(this.outcome, this.markedOperations);
+  const ManualSyncResult(
+    this.outcome,
+    this.markedOperations, {
+    this.message,
+    this.cleanup,
+    this.cleanupFailed = false,
+  });
   final ManualSyncOutcome outcome;
   final int markedOperations;
+  final String? message;
+  final RetentionCleanupResult? cleanup;
+  final bool cleanupFailed;
 }
 
 class ManualSyncRunner {
@@ -36,6 +47,8 @@ class ManualSyncRunner {
     this.checkDashboardStatus,
     this.maxBatchesPerRun,
     this.preparedBatches,
+    this.control,
+    this.dashboardId,
   }) {
     if (maxBatchesPerRun != null && maxBatchesPerRun! < 1) {
       throw ArgumentError.value(maxBatchesPerRun, 'maxBatchesPerRun');
@@ -50,6 +63,8 @@ class ManualSyncRunner {
   /// Controlled-test bound. It does not classify payloads as synthetic.
   final int? maxBatchesPerRun;
   final List<PreparedSyncBatch>? preparedBatches;
+  final SyncRunControl? control;
+  final String? dashboardId;
   bool _running = false;
 
   Future<ManualSyncResult> run() async {
@@ -71,11 +86,15 @@ class ManualSyncRunner {
       await checkDashboardStatus?.call();
       await validateContext?.call();
       if (batches.isEmpty) {
-        // A future authenticated status request is required, not a sync success.
+        // The authenticated status check does not invent an upload success time.
         return const ManualSyncResult(ManualSyncOutcome.emptyQueue, 0);
       }
       var sentCount = 0;
       for (final batch in batches) {
+        if (control != null) {
+          control!.batchLabel = 'Batch ${sentCount + 1} of ${batches.length}';
+          control!.report('Sending...');
+        }
         if (maxBatchesPerRun != null && sentCount >= maxBatchesPerRun!) {
           return ManualSyncResult(ManualSyncOutcome.batchLimitReached, marked);
         }
@@ -84,6 +103,7 @@ class ManualSyncRunner {
           throw StateError('Worker session changed');
         }
         final reply = await transport.send(batch);
+        control?.check();
         sentCount++;
         await validateContext?.call();
         final receipt = SyncAcknowledgement.parse(
@@ -94,6 +114,7 @@ class ManualSyncRunner {
         marked += await repository.applySyncAcknowledgement(
           sentBatch: batch,
           response: reply.response,
+          expectedDashboardId: dashboardId,
           httpStatus: reply.httpStatus,
         );
         if (!receipt.allAccepted) {
@@ -102,9 +123,17 @@ class ManualSyncRunner {
         }
       }
       return ManualSyncResult(ManualSyncOutcome.uploaded, marked);
-    } catch (_) {
+    } catch (error) {
       // No raw transport errors or payloads are returned to worker UI.
-      return ManualSyncResult(ManualSyncOutcome.stopped, marked);
+      return ManualSyncResult(
+        ManualSyncOutcome.stopped,
+        marked,
+        message: error is SyncStopped
+            ? 'Sync stopped.'
+            : error is SyncRequestFailure
+            ? error.message
+            : 'Sync could not be confirmed. Check dashboard access and try again.',
+      );
     } finally {
       _running = false;
     }

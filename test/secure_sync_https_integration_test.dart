@@ -4,6 +4,7 @@ import 'package:ansvk_outreach/sync/dashboard_certificate_checker.dart';
 import 'package:ansvk_outreach/sync/device_credential_store.dart';
 import 'package:ansvk_outreach/sync/secure_sync_transport.dart';
 import 'package:ansvk_outreach/sync/sync_batch_builder.dart';
+import 'package:ansvk_outreach/sync/sync_run_control.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
@@ -112,7 +113,7 @@ void main() {
     });
     await expectLater(
       transport(host, fingerprint: '0' * 64).checkStatus(),
-      throwsStateError,
+      throwsA(isA<SyncRequestFailure>()),
     );
     expect(requests, 0);
   });
