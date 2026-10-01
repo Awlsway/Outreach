@@ -7,6 +7,8 @@ import 'package:ansvk_outreach/sync/manual_sync_runner.dart';
 import 'package:ansvk_outreach/sync/secure_sync_transport.dart';
 import 'package:ansvk_outreach/sync/sync_batch_builder.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'peer_certificate_test_support.dart';
+import 'package:ansvk_outreach/sync/peer_certificate_verifier.dart';
 
 class FakeConnection implements SyncHttpsConnection {
   @override
@@ -45,12 +47,14 @@ void main() {
   late String pin;
   late int connections;
   setUp(() async {
+    installPeerCertificateMock();
     store = DeviceCredentialStore.memory();
     await store.write('synthetic-credential');
     peer = FakeConnection();
     pin = await DashboardCertificateChecker.sha256Hex(peer.certificateDer);
     connections = 0;
   });
+  tearDown(clearPeerCertificateMock);
   SecureSyncTransport transport({String? address, Duration? timeout}) =>
       SecureSyncTransport(
         baseUri: Uri.parse(address ?? 'https://192.168.1.50:3443/api/v1'),
@@ -124,6 +128,62 @@ void main() {
       expect(peer.requests, 0);
     },
   );
+  test(
+    'expiry during asynchronous context guard sends no HTTP secrets',
+    () async {
+      var now = DateTime.utc(2026);
+      final guarded = SecureSyncTransport(
+        baseUri: Uri.parse('https://192.168.1.50:3443/api/v1'),
+        fingerprint: pin,
+        credentialStore: store,
+        connector: (_) async => peer,
+        certificateVerifier: PeerCertificateVerifier(clock: () => now),
+        beforeSend: () async {
+          now = DateTime.utc(2040);
+        },
+      );
+      await expectLater(
+        guarded.checkStatus(),
+        throwsA(isA<SyncRequestFailure>()),
+      );
+      expect(peer.requests, 0);
+      expect(peer.closed, isTrue);
+    },
+  );
+  test('synchronous Stop during TLS setup observes the late error', () async {
+    final control = SyncRunControl();
+    final sending = SecureSyncTransport(
+      baseUri: Uri.parse('https://192.168.1.50:3443/api/v1'),
+      fingerprint: pin,
+      credentialStore: store,
+      control: control,
+      connector: (_) async {
+        control.stop();
+        return peer;
+      },
+    ).checkStatus();
+    await expectLater(sending, throwsA(isA<SyncStopped>()));
+    await Future<void>.delayed(Duration.zero);
+    expect(peer.closed, isTrue);
+    expect(peer.requests, 0);
+  });
+  test('already stopped run still observes late action failure', () async {
+    final control = SyncRunControl()..stop();
+    final action = Completer<int>();
+    await expectLater(
+      control.interruptible(action.future),
+      throwsA(isA<SyncStopped>()),
+    );
+    action.completeError(StateError('synthetic late failure'));
+    await Future<void>.delayed(Duration.zero);
+  });
+  test('already stopped run cannot accept immediate action success', () async {
+    final control = SyncRunControl()..stop();
+    await expectLater(
+      control.interruptible(Future.value(1)),
+      throwsA(isA<SyncStopped>()),
+    );
+  });
   test('wrong certificate sends no credential or payload', () async {
     peer.certificateDer = [9];
     await expectLater(

@@ -51,6 +51,18 @@ void main() {
     expect((await repository.syncStatus())['dashboard_status'], 'Paired');
     expect(await credentialStore.read(), transport.credential);
 
+    final savedPin = await certificateStore.read();
+    final again = await QrPairingCoordinator(
+      repository: repository,
+      certificateFingerprintStore: certificateStore,
+      deviceCredentialStore: credentialStore,
+      appVersion: 'test',
+      transport: transport,
+      clock: () => now,
+    ).pairFromQr(_validQr());
+    expect(again.status, DashboardPairingAttemptStatus.invalidConfiguration);
+    expect(await certificateStore.read(), savedPin);
+    expect(await credentialStore.read(), transport.credential);
     await database.close();
     await directory.delete(recursive: true);
   });

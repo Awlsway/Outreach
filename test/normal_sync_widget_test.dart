@@ -16,6 +16,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 import 'auth_test_support.dart';
 import 'hotspot_test_support.dart';
+import 'peer_certificate_test_support.dart';
+import 'initial_trust_test_support.dart';
 
 class Connection implements SyncHttpsConnection {
   Connection(this.respond);
@@ -34,6 +36,8 @@ class Connection implements SyncHttpsConnection {
 }
 
 void main() {
+  setUp(installPeerCertificateMock);
+  tearDown(clearPeerCertificateMock);
   testWidgets(
     'ordinary Sync sends without review and refreshes receipt time and pending count',
     (tester) async {
@@ -78,6 +82,7 @@ void main() {
             serverTime: DateTime.utc(2026),
           ),
         );
+        await seedConfirmedTrust(repo, pins, credentials);
       });
       var uploads = 0;
       await tester.pumpWidget(
@@ -138,12 +143,20 @@ void main() {
           for (var i = 0; i < 30; i++) {
             await db.connection.rawQuery('SELECT 1');
           }
+          await Future<void>.delayed(const Duration(milliseconds: 10));
         });
-        await tester.pump();
+        await tester.pump(const Duration(milliseconds: 20));
       }
 
       await tester.tap(find.byKey(const ValueKey('open-sync-status')));
-      await flush();
+      for (
+        var attempt = 0;
+        attempt < 12 &&
+            find.byKey(const ValueKey('normal-sync')).evaluate().isEmpty;
+        attempt++
+      ) {
+        await flush();
+      }
       await tester.scrollUntilVisible(
         find.byKey(const ValueKey('normal-sync')),
         150,
@@ -155,7 +168,7 @@ void main() {
             .first,
       );
       await tester.tap(find.byKey(const ValueKey('normal-sync')));
-      for (var i = 0; i < 20; i++) {
+      for (var i = 0; i < 80; i++) {
         await flush();
         if (tester
                 .widget<FilledButton>(find.byKey(const ValueKey('normal-sync')))

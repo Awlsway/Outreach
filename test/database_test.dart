@@ -48,7 +48,7 @@ void main() {
         'hotspot_id': hotspot,
         'client_code': ' 001 ',
       });
-      expect(await database.connection.getVersion(), 7);
+      expect(await database.connection.getVersion(), AppDatabase.schemaVersion);
       expect(
         (await database.connection.rawQuery(
           'PRAGMA foreign_keys',

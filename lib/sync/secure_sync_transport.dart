@@ -3,11 +3,12 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'certificate_fingerprint_store.dart';
-import 'dashboard_certificate_checker.dart';
+import 'peer_certificate_verifier.dart';
 import 'device_credential_store.dart';
 import 'manual_sync_runner.dart';
 import 'sync_batch_builder.dart';
 import 'sync_run_control.dart';
+import 'trust_json.dart';
 
 abstract interface class SyncHttpsConnection {
   List<int> get certificateDer;
@@ -32,7 +33,10 @@ class SecureSyncTransport implements SyncBatchTransport {
     this.timeout = const Duration(seconds: 30),
     this.beforeSend,
     this.control,
-  }) : _connector = connector ?? _connect;
+    PeerCertificateVerifier? certificateVerifier,
+  }) : _connector = connector ?? _connect,
+       certificateVerifier = certificateVerifier ?? PeerCertificateVerifier();
+  final PeerCertificateVerifier certificateVerifier;
   final Uri baseUri;
   final String fingerprint;
   final DeviceCredentialStore credentialStore;
@@ -52,7 +56,20 @@ class SecureSyncTransport implements SyncBatchTransport {
   /// This reply conveys status only; it never marks operations acknowledged.
   Future<SyncBatchReply> checkStatus() => _request('status', null);
 
-  Future<SyncBatchReply> _request(String endpoint, String? body) async {
+  Future<SyncBatchReply> postTrust(String body) =>
+      _request('certificate-trust', body, trust: true);
+
+  Future<SyncBatchReply> postRenewalClaim(String body) =>
+      _request('certificate-renewals/claim', body, trust: true);
+
+  Future<SyncBatchReply> postRenewalConfirmation(String body) =>
+      _request('certificate-renewals/confirm', body, trust: true);
+
+  Future<SyncBatchReply> _request(
+    String endpoint,
+    String? body, {
+    bool trust = false,
+  }) async {
     final expected = CertificateFingerprintStore.normalize(fingerprint);
     if (baseUri.scheme != 'https' ||
         baseUri.host.isEmpty ||
@@ -67,7 +84,9 @@ class SecureSyncTransport implements SyncBatchTransport {
     if (credential == null || !RegExp(r'^[\x21-\x7E]+$').hasMatch(credential)) {
       throw StateError('Device credential unavailable');
     }
-    final uri = baseUri.replace(path: '/api/v1/sync/$endpoint');
+    final uri = baseUri.replace(
+      path: trust ? '/api/v1/$endpoint' : '/api/v1/sync/$endpoint',
+    );
     SyncHttpsConnection? connection;
     var expired = false;
     try {
@@ -79,15 +98,20 @@ class SecureSyncTransport implements SyncBatchTransport {
           throw TimeoutException('Sync timed out');
         }
         control?.check();
-        final actual = await DashboardCertificateChecker.sha256Hex(
-          peer.certificateDer,
-        );
-        if (expired || actual != expected) {
+        try {
+          final validity = await certificateVerifier.verify(
+            endpoint: uri,
+            der: peer.certificateDer,
+            fingerprint: expected,
+          );
+          await beforeSend?.call();
+          validity.check(certificateVerifier.clock());
+        } on CertificateVerificationFailure {
           throw SyncRequestFailure(
-            'Dashboard certificate could not be verified. Ask the data assistant to check the connection.',
+            'Dashboard certificate could not be verified. Ask the data assistant to check its dates and address.',
           );
         }
-        await beforeSend?.call();
+        control?.check();
         if (expired) throw TimeoutException('Sync timed out');
         return await peer.request(
           uri,
@@ -156,13 +180,19 @@ class _SocketConnection implements SyncHttpsConnection {
       throw const FormatException('Dashboard redirect refused');
     }
     final bytes = <int>[];
+    final lifecycle =
+        uri.path == '/api/v1/certificate-trust' ||
+        uri.path == '/api/v1/certificate-renewals/claim' ||
+        uri.path == '/api/v1/certificate-renewals/confirm';
     await for (final chunk in reply) {
-      if (bytes.length + chunk.length > 1024 * 1024) {
+      if (bytes.length + chunk.length > (lifecycle ? 32768 : 1024 * 1024)) {
         throw const FormatException('Dashboard response exceeds limit');
       }
       bytes.addAll(chunk);
     }
-    final decoded = jsonDecode(utf8.decode(bytes));
+    final decoded = lifecycle
+        ? decodeTrustJson(utf8.decode(bytes))
+        : jsonDecode(utf8.decode(bytes));
     if (decoded is! Map<String, dynamic>) {
       throw const FormatException('Invalid dashboard JSON');
     }

@@ -4,6 +4,7 @@ import 'dashboard_pairing_service.dart';
 import 'device_credential_store.dart';
 import 'pairing_request_builder.dart';
 import 'qr_pairing_payload.dart';
+import 'lifecycle_gate.dart';
 
 /// Connects a validated QR envelope to the existing pinned pairing request.
 ///
@@ -27,12 +28,29 @@ class QrPairingCoordinator {
   final PairingTransport? transport;
   final DateTime Function() _clock;
 
-  Future<DashboardPairingAttemptResult> pairFromQr(String scanned) async {
+  Future<DashboardPairingAttemptResult> pairFromQr(String scanned) =>
+      LifecycleGate.run(() => _pairFromQr(scanned));
+
+  Future<DashboardPairingAttemptResult> _pairFromQr(String scanned) async {
+    if ((await repository.dashboardPairingPreparation())['status'] ==
+            'Paired' ||
+        (await repository.database.connection.query(
+          'initial_certificate_trust',
+        )).isNotEmpty) {
+      return const DashboardPairingAttemptResult.invalidConfiguration(
+        'This phone is already paired or has saved trust.',
+      );
+    }
+    final token = repository.sessionToken;
     final payload = QrPairingPayload.parse(scanned, clock: _clock);
     await repository.saveDashboardPairing(
       payload.apiBaseUrl.toString(),
       payload.pairingCode,
     );
+    if (repository.currentWorkerId() == null ||
+        repository.sessionToken != token) {
+      throw StateError('Session changed');
+    }
     await certificateFingerprintStore.write(payload.certificateSha256);
     return DashboardPairingService(
       repository: repository,
@@ -42,6 +60,7 @@ class QrPairingCoordinator {
         clock: _clock,
       ),
       transport: transport,
+      sessionToken: token,
     ).pair(expectedCertificateFingerprint: payload.certificateSha256);
   }
 }

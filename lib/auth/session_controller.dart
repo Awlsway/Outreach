@@ -15,6 +15,8 @@ class SessionController extends ChangeNotifier {
   bool _disposed = false;
   bool _busy = false;
   int _generation = 0;
+  int _revision = 0;
+  int get revision => _revision;
   Timer? _timer;
   DateTime? _lastActivity;
   final Stopwatch _elapsed = Stopwatch();
@@ -60,6 +62,7 @@ class SessionController extends ChangeNotifier {
 
   Future<void> _perform(Future<WorkerIdentity> Function() action) async {
     final generation = ++_generation;
+    _revision++;
     _busy = true;
     notifyListeners();
     try {
@@ -97,12 +100,14 @@ class SessionController extends ChangeNotifier {
   void lock() {
     if (_disposed || _worker == null || _locked) return;
     _locked = true;
+    _revision++;
     _timer?.cancel();
     notifyListeners();
   }
 
   void setForeground(bool foreground) {
     if (_disposed) return;
+    if (_hidden == foreground) _revision++;
     _hidden = !foreground;
     if (foreground && _expired) _locked = true;
     // Returning before the deadline never resets the inactivity timer.
@@ -111,6 +116,7 @@ class SessionController extends ChangeNotifier {
 
   void logout() {
     _generation++;
+    _revision++;
     _busy = false;
     _worker = null;
     _locked = false;
@@ -124,6 +130,7 @@ class SessionController extends ChangeNotifier {
   void dispose() {
     _disposed = true;
     _generation++;
+    _revision++;
     _timer?.cancel();
     _elapsed.stop();
     super.dispose();

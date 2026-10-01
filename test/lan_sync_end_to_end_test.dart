@@ -4,7 +4,7 @@ import 'dart:io';
 import 'package:ansvk_outreach/database/app_database.dart';
 import 'package:ansvk_outreach/database/outreach_repository.dart';
 import 'package:ansvk_outreach/sync/certificate_fingerprint_store.dart';
-import 'package:ansvk_outreach/sync/configured_manual_sync.dart';
+
 import 'package:ansvk_outreach/sync/dashboard_pairing_service.dart';
 import 'package:ansvk_outreach/sync/device_credential_store.dart';
 import 'package:ansvk_outreach/sync/manual_sync_runner.dart';
@@ -15,8 +15,15 @@ import 'package:ansvk_outreach/sync/sync_status_response.dart';
 import 'package:ansvk_outreach/sync/reviewed_sync_plan.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
+import 'jvm_certificate_test_support.dart';
 
 void main() {
+  late JvmCertificateReader metadataReader;
+  setUpAll(() async {
+    metadataReader = await JvmCertificateReader.create();
+    metadataReader.install();
+  });
+  tearDownAll(() => metadataReader.close());
   for (final restricted in [false, true]) {
     test(
       'APK actual LAN integration (restricted: $restricted)',
@@ -251,14 +258,23 @@ void main() {
             403,
           );
         }
-        final service = ConfiguredManualSync(
-          repository: repo,
-          fingerprintStore: pins,
-          credentialStore: credentials,
-          builder: builder,
-          maxBatchesPerRun: 1,
-        );
-        final first = await service.run(reviewedPlan: reviewed);
+        // Legacy upload harness has no trust bootstrap route and uses an
+        // ephemeral port. Keep its pairing/batch/receipt regression at the
+        // transport/runner layer; initial_trust_lan_integration_test exercises
+        // ConfiguredManualSync against production startup with mandatory trust.
+        Future<ManualSyncResult> legacyRun({ReviewedSyncPlan? reviewedPlan}) =>
+            ManualSyncRunner(
+              repository: repo,
+              builder: builder,
+              transport: statusTransport,
+              dashboardId: paired.success!.dashboardId,
+              maxBatchesPerRun: 1,
+              preparedBatches: reviewedPlan?.batches,
+              validateContext: reviewedPlan == null
+                  ? null
+                  : () => reviewedPlan.validate(repo),
+            ).run();
+        final first = await legacyRun(reviewedPlan: reviewed);
         expect(first.outcome, ManualSyncOutcome.uploaded);
         expect(first.markedOperations, 3);
         expect(await repo.pendingOperations(), isEmpty);
@@ -298,7 +314,7 @@ void main() {
           expectedWorkerId: worker,
         );
         final revisionReview = await ReviewedSyncPlan.prepare(repo, builder);
-        final second = await service.run(reviewedPlan: revisionReview);
+        final second = await legacyRun(reviewedPlan: revisionReview);
         expect(
           second.outcome,
           restricted ? ManualSyncOutcome.stopped : ManualSyncOutcome.uploaded,
@@ -309,7 +325,7 @@ void main() {
           restricted ? revisions : isEmpty,
         );
         if (!restricted) {
-          expect((await service.run()).outcome, ManualSyncOutcome.emptyQueue);
+          expect((await legacyRun()).outcome, ManualSyncOutcome.emptyQueue);
         }
         bridge.stdin.writeln(
           jsonEncode({

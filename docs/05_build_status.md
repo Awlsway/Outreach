@@ -1,3 +1,17 @@
+## Signed renewal test candidate (29 September 2026)
+
+- Signed candidate 0.9.11+26 built in 330.9 seconds with the existing normal
+  application ID and release key. Signature v2, signer continuity,
+  non-debuggable manifest, permissions and optimized native handlers verified.
+- Named APK: `build/renewal-test/ANSVK-Outreach-0.9.11-26-renewal-test.apk`.
+  SHA-256: `FE1007F8C67FBF52EF78DBCD7C1CE347261F763B56F961626ECC5EE0F265BCA4`.
+  Native and Dart synthetic export are disabled.
+- The previous 0.9.10+25 signed artifact was preserved and checksum-verified.
+  The installed-version regression has 2 passing tests and no analysis issues.
+- No phone installation or deployment. Native runtime/camera, update-data
+  preservation and joint renewal UAT remain pending; do not distribute to field phones.
+- [Candidate evidence and remaining gate](48_certificate_renewal_signed_candidate.md).
+
 ## Final signed APK checks (27 September 2026)
 
 - Ordinary phone failure/recovery, signed QR enrollment/Sync, and replacement installation passed. Final receipt `f2ec7984-f642-475d-a2c3-a674ba1e392d` accepted client0932 once, kept client0931 unchanged and reports the actual `0.9.10+25` version. Phone shows zero pending and matching receipt time. A discovered hard-coded app version was replaced with installed Android metadata for every pairing/preparation/Sync path.
@@ -447,3 +461,16 @@ The generated release build still uses debug signing. Configure release signing 
 - Cold launch: Status: ok, 1848 ms. App-specific Flutter/AndroidRuntime error log returned no entries.
 - Device accessibility hierarchy confirms Create your account, username/password guidance and account actions are on screen. Secure-window protection intentionally blocks screenshots; no screenshot bypass was attempted.
 - No account was created by the agent on the user's phone. Actual registration/unlock walkthrough is ready for the user; automated tests cover those flows on the development computer.
+## Renewal Android build checkpoint (29 September 2026)
+
+- Approved validity/initial-trust/renewal/normal-Sync source compiles as a debug
+  Android APK. assembleDebug completed in 269.3 seconds.
+- APK inspection verifies the native certificate bridge/parser, scanner and
+  secure storage/SQLCipher registration, camera/network permissions and disabled
+  native synthetic export. Dart synthetic export was explicitly false.
+- This is the separate `org.ansvk.ansvk_outreach.debug` test package,
+  not a worker release. No phone was installed or accessed.
+- The previous signed release artifact remains unchanged. Release candidate,
+  Android runtime/camera/provider and joint renewal checks are still pending.
+- Detailed hash, commands and evidence:
+  [Renewal Android build](47_certificate_renewal_android_build.md).

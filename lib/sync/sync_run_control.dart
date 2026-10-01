@@ -33,11 +33,18 @@ class SyncRunControl {
   }
 
   Future<T> interruptible<T>(Future<T> action) async {
-    check();
-    return Future.any<T>([
-      action,
-      _stopped.future.then<T>((_) => throw SyncStopped()),
-    ]);
+    // The action has already started; observe late errors even after Stop.
+    try {
+      final result = await Future.any<T>([
+        action,
+        _stopped.future.then<T>((_) => throw SyncStopped()),
+      ]);
+      check();
+      return result;
+    } catch (_) {
+      check();
+      rethrow;
+    }
   }
 }
 

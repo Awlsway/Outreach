@@ -1,2 +1,4 @@
 # The shared QR contract fixtures are compared byte-for-byte with the LAN repo.
 docs/fixtures/outreach/qr-v1/** text eol=lf
+# Renewal fixture checksums cover original bytes, including line endings.
+docs/fixtures/outreach/certificate-renewal-v1/** -text

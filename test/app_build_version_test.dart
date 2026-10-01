@@ -11,11 +11,15 @@ void main() {
   test(
     'installed version and build overrides are returned unchanged',
     () async {
-      messenger.setMockMethodCallHandler(AppBuildVersion.channel, (call) async {
-        expect(call.method, 'read');
-        return '0.9.10+25';
-      });
-      expect(await AppBuildVersion.read(), '0.9.10+25');
+      for (final version in ['0.9.10+25', '0.9.11+26']) {
+        messenger.setMockMethodCallHandler(AppBuildVersion.channel, (
+          call,
+        ) async {
+          expect(call.method, 'read');
+          return version;
+        });
+        expect(await AppBuildVersion.read(), version);
+      }
     },
   );
   test(

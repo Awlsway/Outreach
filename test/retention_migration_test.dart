@@ -73,7 +73,7 @@ void main() {
         path: path,
       );
       addTearDown(db.close);
-      expect(await db.connection.getVersion(), 7);
+      expect(await db.connection.getVersion(), AppDatabase.schemaVersion);
       expect((await db.connection.query('audit_operations')).single, original);
       expect(
         (await db.connection.query('sync_outbox')).single['acknowledged_at'],

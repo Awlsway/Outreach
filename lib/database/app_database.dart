@@ -10,7 +10,7 @@ import 'schema.dart';
 class AppDatabase {
   AppDatabase._(this.connection);
 
-  static const schemaVersion = 7;
+  static const schemaVersion = 9;
   static const filename = 'ansvk_outreach.db';
 
   /// Infrastructure access only. Screens should use worker-scoped repositories.
@@ -96,7 +96,10 @@ class AppDatabase {
         passphrase,
       ]);
       await plain.rawQuery("SELECT sqlcipher_export('encrypted')");
-      await plain.execute('PRAGMA encrypted.user_version = $schemaVersion');
+      final originalVersion =
+          (await plain.rawQuery('PRAGMA user_version')).single.values.single
+              as int;
+      await plain.execute('PRAGMA encrypted.user_version = $originalVersion');
       await plain.execute('DETACH DATABASE encrypted');
     } catch (_) {
       try {

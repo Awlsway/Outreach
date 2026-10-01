@@ -9,6 +9,9 @@ import 'sync_batch_builder.dart';
 import 'sync_status_response.dart';
 import 'reviewed_sync_plan.dart';
 import 'sync_run_control.dart';
+import 'initial_certificate_trust.dart';
+import 'lifecycle_gate.dart';
+import 'certificate_renewal_qr.dart';
 
 /// Secure foreground sync shared by the ordinary UI and reviewed test path.
 class ConfiguredManualSync {
@@ -32,7 +35,37 @@ class ConfiguredManualSync {
   final double Function()? retryRandom;
   bool _running = false;
 
+  InitialCertificateTrust get _trust => InitialCertificateTrust(
+    repository: repository,
+    legacyPins: fingerprintStore,
+    credentials: credentialStore,
+    connector: connector,
+  );
   Future<ManualSyncResult> run({
+    ReviewedSyncPlan? reviewedPlan,
+    SyncRunControl? control,
+  }) async {
+    final token = repository.sessionToken;
+    try {
+      return await LifecycleGate.run(() async {
+        await _trust.ensureWhileHeld(control: control);
+        if (repository.sessionToken != token) {
+          throw StateError('Session changed');
+        }
+        return _run(reviewedPlan: reviewedPlan, control: control);
+      });
+    } catch (error) {
+      return ManualSyncResult(
+        ManualSyncOutcome.stopped,
+        0,
+        message: error is CertificateRenewalQrException
+            ? error.message
+            : 'Dashboard trust setup or confirmation could not finish. Records remain pending. Check dashboard access and retry Sync.',
+      );
+    }
+  }
+
+  Future<ManualSyncResult> _run({
     ReviewedSyncPlan? reviewedPlan,
     SyncRunControl? control,
   }) async {
@@ -43,16 +76,17 @@ class ConfiguredManualSync {
           (await repository.currentWorkerProfile())['worker_id'] as String;
       final identity = await repository.appIdentity();
       final config = await repository.dashboardPairingPreparation();
-      final pin = await fingerprintStore.read();
+      final pin = await _trust.confirmedPin();
+      final trustStamp = await _trust.recordStamp();
       final credential = await credentialStore.read();
       if (config['status'] != 'Paired' ||
-          pin == null ||
           credential == null ||
           config['dashboard_id'] is! String ||
           config['paired_at'] is! String) {
         throw StateError('Dashboard pairing is unavailable');
       }
       final configSnapshot = jsonEncode(config);
+      final token = repository.sessionToken;
       Future<void> guard() async {
         control?.check();
         await reviewedPlan?.validate(repository);
@@ -61,7 +95,9 @@ class ConfiguredManualSync {
                 jsonEncode(identity) ||
             jsonEncode(await repository.dashboardPairingPreparation()) !=
                 configSnapshot ||
-            await fingerprintStore.read() != pin ||
+            await _trust.confirmedPin() != pin ||
+            await _trust.recordStamp() != trustStamp ||
+            repository.sessionToken != token ||
             await credentialStore.read() != credential) {
           throw StateError('Sync context changed');
         }

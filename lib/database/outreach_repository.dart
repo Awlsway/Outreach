@@ -19,11 +19,15 @@ class OutreachRepository {
   OutreachRepository(
     this.database, {
     required this.currentWorkerId,
+    this.sessionRevision,
     DateTime Function()? clock,
   }) : _clock = clock ?? DateTime.now;
 
   final AppDatabase database;
   final String? Function() currentWorkerId;
+  final int Function()? sessionRevision;
+  String get sessionToken =>
+      jsonEncode([currentWorkerId(), sessionRevision?.call()]);
   final DateTime Function() _clock;
   static const _uuid = Uuid();
   Database get _db => database.connection;

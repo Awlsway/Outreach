@@ -6,6 +6,8 @@ import '../auth/session_controller.dart';
 import '../database/outreach_repository.dart' as data;
 import '../encounters/encounter_form.dart';
 import '../sync/certificate_fingerprint_store.dart';
+import '../sync/initial_certificate_trust.dart';
+import '../sync/certificate_renewal_page.dart';
 import '../sync/sync_batch_builder.dart';
 import '../sync/sync_review_manifest.dart';
 import '../sync/reviewed_sync_plan.dart';
@@ -33,6 +35,7 @@ enum _Page {
   editRecord,
   sync,
   pendingChanges,
+  certificateRenewal,
 }
 
 /// Internal pages stay inside the app's session/lock boundary. They do not push
@@ -45,12 +48,14 @@ class HotspotWorkspace extends StatefulWidget {
     this.certificateFingerprintStore,
     this.deviceCredentialStore,
     this.syncConnector,
+    this.renewalScannerBuilder,
   });
   final SessionController session;
   final HotspotLocationService location;
   final CertificateFingerprintStore? certificateFingerprintStore;
   final DeviceCredentialStore? deviceCredentialStore;
   final SyncHttpsConnector? syncConnector;
+  final RenewalScannerBuilder? renewalScannerBuilder;
   @override
   State<HotspotWorkspace> createState() => _HotspotWorkspaceState();
 }
@@ -59,6 +64,7 @@ class _HotspotWorkspaceState extends State<HotspotWorkspace> {
   late final _repository = data.OutreachRepository(
     widget.session.auth.database,
     currentWorkerId: () => widget.session.currentWorkerId,
+    sessionRevision: () => widget.session.revision,
   );
   final _search = TextEditingController();
   late final CertificateFingerprintStore _certificateFingerprintStore =
@@ -79,6 +85,8 @@ class _HotspotWorkspaceState extends State<HotspotWorkspace> {
   bool _syncLoading = false;
   bool _preparingBatches = false;
   bool _testActionRunning = false;
+  bool _renewalRunning = false, _renewalBlocksSync = false;
+  Future<void>? _trustPreparation;
   SyncRunControl? _syncControl;
   String? _normalSyncMessage;
   String? _testActionMessage;
@@ -103,9 +111,48 @@ class _HotspotWorkspaceState extends State<HotspotWorkspace> {
   void initState() {
     super.initState();
     widget.session.addListener(_invalidateReviewOnLock);
+    unawaited(_resumeInitialTrust());
+  }
+
+  InitialCertificateTrust get _initialTrust => InitialCertificateTrust(
+    repository: _repository,
+    legacyPins: _certificateFingerprintStore,
+    credentials: _deviceCredentialStore,
+    connector: widget.syncConnector,
+  );
+
+  Future<void> _resumeInitialTrust() async {
+    final pending = _trustPreparation;
+    if (pending != null) {
+      await pending;
+      return;
+    }
+    final preparation = _prepareInitialTrust();
+    _trustPreparation = preparation;
+    try {
+      await preparation;
+    } finally {
+      if (identical(_trustPreparation, preparation)) _trustPreparation = null;
+    }
+  }
+
+  Future<void> _prepareInitialTrust() async {
+    try {
+      if (widget.session.currentWorkerId != null &&
+          (await _repository.dashboardPairingPreparation())['status'] ==
+              'Paired') {
+        await _initialTrust.ensure();
+      }
+    } catch (_) {
+      /* Local recording stays available; Sync retries setup. */
+    }
   }
 
   void _invalidateReviewOnLock() {
+    if (widget.session.currentWorkerId != null &&
+        _page != _Page.certificateRenewal) {
+      unawaited(_resumeInitialTrust());
+    }
     if (widget.session.currentWorkerId == null) _syncControl?.stop();
     if (_reviewedPlan != null &&
         widget.session.currentWorkerId != _reviewedPlan!.workerId) {
@@ -161,13 +208,14 @@ class _HotspotWorkspaceState extends State<HotspotWorkspace> {
   }
 
   void _back() {
-    if (_syncControl != null) return;
+    if (_syncControl != null || _renewalRunning) return;
     if (_page == _Page.list ||
         _page == _Page.summary ||
         _page == _Page.records ||
         _page == _Page.sync) {
       setState(() => _page = _Page.home);
-    } else if (_page == _Page.pendingChanges) {
+    } else if (_page == _Page.pendingChanges ||
+        _page == _Page.certificateRenewal) {
       _openSyncStatus();
     } else if (_page == _Page.recordDetail) {
       _openRecords();
@@ -223,10 +271,16 @@ class _HotspotWorkspaceState extends State<HotspotWorkspace> {
   }
 
   Future<void> _openSyncStatus() async {
-    if (_testActionRunning || _syncControl != null) return;
+    if (_testActionRunning ||
+        _syncControl != null ||
+        _renewalRunning ||
+        widget.session.currentWorkerId == null) {
+      return;
+    }
     if (SyntheticReviewExport.enabled) await SyntheticReviewExport.clear();
     if (!mounted) return;
     widget.session.activity();
+    final token = _repository.sessionToken;
     setState(() {
       _page = _Page.sync;
       _syncLoading = true;
@@ -237,9 +291,34 @@ class _HotspotWorkspaceState extends State<HotspotWorkspace> {
     });
     try {
       final status = await _repository.syncStatus();
-      final fingerprint = await _certificateFingerprintStore.read();
+      await _resumeInitialTrust();
+      String? fingerprint;
+      var renewalBlocksSync = false;
+      try {
+        final trust = await _initialTrust.renewalState();
+        renewalBlocksSync =
+            trust.pendingClaim != null || trust.pendingConfirmation != null;
+        if (trust.canSync) fingerprint = trust.context.certificateSha256;
+      } catch (_) {
+        // An unreadable saved renewal must not appear ready or fall back to
+        // the old pairing pin. Initial setup can still be retried with Sync.
+        renewalBlocksSync = (await _repository.database.connection.query(
+          'certificate_renewals',
+          columns: ['grant_id'],
+          limit: 1,
+        )).isNotEmpty;
+      }
       if (!mounted || _page != _Page.sync) return;
+      if (_repository.sessionToken != token) {
+        setState(() {
+          _syncLoading = false;
+          _syncStatus = null;
+          _syncError = 'Sync status changed. Refresh after unlocking.';
+        });
+        return;
+      }
       setState(() {
+        _renewalBlocksSync = renewalBlocksSync;
         _syncStatus = {
           ...status,
           'certificate_fingerprint_hint': fingerprint == null
@@ -258,7 +337,12 @@ class _HotspotWorkspaceState extends State<HotspotWorkspace> {
   }
 
   Future<void> _normalSync() async {
-    if (_syncControl != null || _testActionRunning || _preparingBatches) return;
+    if (_syncControl != null ||
+        _testActionRunning ||
+        _preparingBatches ||
+        _renewalBlocksSync) {
+      return;
+    }
     widget.session.activity();
     final control = SyncRunControl(
       onProgress: (message) {
@@ -360,6 +444,20 @@ class _HotspotWorkspaceState extends State<HotspotWorkspace> {
       );
     }
     if (mounted) await _openSyncStatus();
+  }
+
+  void _openCertificateRenewal() {
+    if (_syncLoading ||
+        _syncControl != null ||
+        _preparingBatches ||
+        _testActionRunning ||
+        _checkingDashboardAccess ||
+        _syncStatus?['dashboard_status'] != 'Paired' ||
+        widget.session.currentWorkerId == null) {
+      return;
+    }
+    widget.session.activity();
+    setState(() => _page = _Page.certificateRenewal);
   }
 
   Future<void> _checkDashboardAccess() async {
@@ -618,6 +716,15 @@ class _HotspotWorkspaceState extends State<HotspotWorkspace> {
       ),
       _Page.sync => _syncPage(context),
       _Page.pendingChanges => _pendingChangesPage(context),
+      _Page.certificateRenewal => CertificateRenewalPage(
+        session: widget.session,
+        trust: _initialTrust,
+        scannerBuilder: widget.renewalScannerBuilder,
+        onBack: _back,
+        onBusyChanged: (busy) {
+          if (mounted) setState(() => _renewalRunning = busy);
+        },
+      ),
     },
   );
 
@@ -1155,6 +1262,28 @@ class _HotspotWorkspaceState extends State<HotspotWorkspace> {
                   ),
                   const SizedBox(height: 12),
                 ],
+                if (_syncStatus?['dashboard_status'] == 'Paired') ...[
+                  if (_renewalBlocksSync) ...[
+                    const Text(
+                      'Certificate renewal must finish before Sync.',
+                      key: ValueKey('renewal-blocks-sync'),
+                    ),
+                    const SizedBox(height: 12),
+                  ],
+                  OutlinedButton.icon(
+                    key: const ValueKey('open-certificate-renewal'),
+                    onPressed:
+                        _syncControl != null ||
+                            _preparingBatches ||
+                            _testActionRunning ||
+                            _checkingDashboardAccess
+                        ? null
+                        : _openCertificateRenewal,
+                    icon: const Icon(Icons.verified_user_outlined),
+                    label: const Text('Certificate renewal'),
+                  ),
+                  const SizedBox(height: 12),
+                ],
                 if (kDebugMode &&
                     _syncStatus?['dashboard_status'] == 'Paired') ...[
                   OutlinedButton.icon(
@@ -1192,12 +1321,17 @@ class _HotspotWorkspaceState extends State<HotspotWorkspace> {
                   ),
                 ),
                 const SizedBox(height: 20),
-                _summaryGrid(context, [
-                  _SummaryItem(
-                    'Pending changes',
-                    ((_syncStatus?['pending_operations'] as num?) ?? 0).toInt(),
-                  ),
-                ]),
+                Row(
+                  children: [
+                    const Expanded(child: Text('Pending changes')),
+                    Text(
+                      ((_syncStatus?['pending_operations'] as num?) ?? 0)
+                          .toInt()
+                          .toString(),
+                      style: Theme.of(context).textTheme.titleLarge,
+                    ),
+                  ],
+                ),
                 const SizedBox(height: 16),
                 if (!SyntheticReviewExport.enabled) ...[
                   FilledButton.icon(
@@ -1206,6 +1340,7 @@ class _HotspotWorkspaceState extends State<HotspotWorkspace> {
                         _syncControl != null ||
                             _preparingBatches ||
                             _checkingDashboardAccess ||
+                            _renewalBlocksSync ||
                             _syncStatus?['dashboard_status'] != 'Paired'
                         ? null
                         : _normalSync,

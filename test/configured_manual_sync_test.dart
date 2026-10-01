@@ -14,6 +14,8 @@ import 'package:ansvk_outreach/sync/sync_batch_builder.dart';
 import 'package:ansvk_outreach/sync/reviewed_sync_plan.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
+import 'peer_certificate_test_support.dart';
+import 'initial_trust_test_support.dart';
 
 class TestConnection implements SyncHttpsConnection {
   TestConnection(this.respond);
@@ -43,9 +45,11 @@ void main() {
   late List<String> uploadBodies;
   late String statusDevice;
   late String deviceStatus;
+  late Map<String, Object?> certificateMetadata;
   Future<void> Function()? duringUpload;
   Future<void> Function()? duringConnect;
   setUp(() async {
+    certificateMetadata = installPeerCertificateMock();
     sqfliteFfiInit();
     db = await AppDatabase.open(
       factory: databaseFactoryFfi,
@@ -74,6 +78,7 @@ void main() {
         serverTime: DateTime.utc(2026),
       ),
     );
+    await seedConfirmedTrust(repo, pins, credentials);
     paths = [];
     uploadBodies = [];
     duringUpload = null;
@@ -153,6 +158,58 @@ void main() {
       expect(await repo.pendingOperations(), isEmpty);
     },
   );
+  for (final failure in ['expired', 'future', 'wrong-ip', 'wrong-pin']) {
+    test(
+      'certificate $failure sends nothing and cannot acknowledge or clean up',
+      () async {
+        if (failure == 'expired') {
+          certificateMetadata['notAfter'] = DateTime.utc(
+            2021,
+          ).millisecondsSinceEpoch;
+        }
+        if (failure == 'future') {
+          certificateMetadata['notBefore'] = DateTime.utc(
+            2039,
+          ).millisecondsSinceEpoch;
+        }
+        if (failure == 'wrong-ip') {
+          certificateMetadata['ipSans'] = ['192.168.1.50'];
+        }
+        if (failure == 'wrong-pin')
+          await db.connection.update('initial_certificate_trust', {
+            'bootstrap_json': '{}',
+          });
+        final result = await service.run(control: SyncRunControl());
+        expect(result.outcome, ManualSyncOutcome.stopped);
+        expect(paths, isEmpty);
+        expect(uploadBodies, isEmpty);
+        expect(await repo.pendingOperations(), hasLength(2));
+        final status = await repo.syncStatus();
+        expect(status['last_successful_sync_at'], isNull);
+        expect(status['retention_checked_at'], isNull);
+        expect(await credentials.read(), 'synthetic-credential');
+        expect(await repo.appIdentity(), identity);
+      },
+    );
+  }
+  test(
+    'new connection on retry rechecks certificate before resending payload',
+    () async {
+      duringUpload = () async {
+        certificateMetadata['notAfter'] = DateTime.utc(
+          2021,
+        ).millisecondsSinceEpoch;
+        throw const SocketException('synthetic lost receipt');
+      };
+      final result = await service.run(control: SyncRunControl());
+      expect(result.outcome, ManualSyncOutcome.stopped);
+      expect(uploadBodies, hasLength(1));
+      expect(paths, ['/api/v1/sync/status', '/api/v1/sync/batches']);
+      expect(await repo.pendingOperations(), hasLength(2));
+      expect((await repo.syncStatus())['last_successful_sync_at'], isNull);
+      expect((await repo.syncStatus())['retention_checked_at'], isNull);
+    },
+  );
   test(
     'Stop during upload leaves all unconfirmed operations pending',
     () async {
@@ -217,6 +274,7 @@ void main() {
     },
   );
   tearDown(() async {
+    clearPeerCertificateMock();
     await db.close();
     worker = null;
   });
@@ -332,7 +390,7 @@ void main() {
   test(
     'context changed during TLS setup prevents HTTP secrets being sent',
     () async {
-      duringConnect = pins.clear;
+      duringConnect = repo.clearDashboardAddress;
       expect((await service.run()).outcome, ManualSyncOutcome.stopped);
       expect(paths, isEmpty);
       expect(await repo.pendingOperations(), hasLength(2));

@@ -202,4 +202,52 @@ Future<void> migrate(Database db, int from, int to) async {
         (SELECT operation_id FROM audit_operations WHERE entity_type = 'encounter')''',
     );
   }
+  if (from < 8 && to >= 8) {
+    await db.execute('''CREATE TABLE initial_certificate_trust (
+      singleton_id INTEGER PRIMARY KEY NOT NULL CHECK(singleton_id = 1),
+      state TEXT NOT NULL CHECK(state IN ('bootstrap_pending','confirmation_pending','confirmed')),
+      snapshot_json TEXT NOT NULL,
+      bootstrap_json TEXT,
+      CHECK(state = 'bootstrap_pending' OR bootstrap_json IS NOT NULL)
+    )''');
+  }
+  if (from < 9 && to >= 9) {
+    await db.execute('''CREATE TABLE certificate_renewals (
+      sequence INTEGER PRIMARY KEY AUTOINCREMENT,
+      grant_id TEXT NOT NULL UNIQUE,
+      state TEXT NOT NULL CHECK(state IN (
+        'claim_pending','confirmation_pending','confirmed','confirmed_by_successor','rejected')),
+      verified_at INTEGER NOT NULL CHECK(verified_at > 0 AND verified_at <= 253402300799),
+      compact_jws TEXT NOT NULL CHECK(length(compact_jws) <= 2048),
+      receipt_json TEXT,
+      confirmation_json TEXT,
+      confirmed_by_grant_id TEXT REFERENCES certificate_renewals(grant_id),
+      rejection_code TEXT,
+      CHECK((state IN ('claim_pending','rejected') AND receipt_json IS NULL)
+        OR (state IN ('confirmation_pending','confirmed','confirmed_by_successor')
+          AND receipt_json IS NOT NULL)),
+      CHECK((state = 'confirmed' AND confirmation_json IS NOT NULL)
+        OR (state != 'confirmed' AND confirmation_json IS NULL)),
+      CHECK((state = 'confirmed_by_successor' AND confirmed_by_grant_id IS NOT NULL)
+        OR (state != 'confirmed_by_successor' AND confirmed_by_grant_id IS NULL)),
+      CHECK((state = 'rejected' AND rejection_code IS NOT NULL
+          AND rejection_code IN ('renewal_grant_expired','renewal_grant_cancelled'))
+        OR (state != 'rejected' AND rejection_code IS NULL))
+    )''');
+    for (final state in ['claim_pending', 'confirmation_pending']) {
+      await db.execute('''CREATE UNIQUE INDEX one_renewal_$state
+        ON certificate_renewals(state) WHERE state = '$state' ''');
+    }
+    await db.execute('''CREATE TRIGGER renewal_proof_immutable
+      BEFORE UPDATE ON certificate_renewals
+      WHEN NEW.sequence != OLD.sequence OR NEW.grant_id != OLD.grant_id
+        OR NEW.verified_at != OLD.verified_at OR NEW.compact_jws != OLD.compact_jws
+        OR (OLD.receipt_json IS NOT NULL AND NEW.receipt_json IS NOT OLD.receipt_json)
+        OR (OLD.confirmation_json IS NOT NULL AND NEW.confirmation_json IS NOT OLD.confirmation_json)
+        OR (OLD.confirmed_by_grant_id IS NOT NULL AND NEW.confirmed_by_grant_id IS NOT OLD.confirmed_by_grant_id)
+      BEGIN SELECT RAISE(ABORT, 'Renewal proof is immutable'); END''');
+    await db.execute('''CREATE TRIGGER renewal_history_retained
+      BEFORE DELETE ON certificate_renewals
+      BEGIN SELECT RAISE(ABORT, 'Renewal history must be retained'); END''');
+  }
 }
