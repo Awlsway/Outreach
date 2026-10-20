@@ -1,8 +1,7 @@
+import 'sync_protocol.dart';
+
 class PairingRequestBuilder {
-  const PairingRequestBuilder({
-    required this.appVersion,
-    required this.clock,
-  });
+  const PairingRequestBuilder({required this.appVersion, required this.clock});
 
   final String appVersion;
   final DateTime Function() clock;
@@ -29,7 +28,7 @@ class PairingRequestBuilder {
       'protocol_version': 1,
       'project_id': projectId,
       'project_name': projectName,
-      'schema_version': 6,
+      'schema_version': syncPayloadSchemaVersion,
       'app_version': appVersion,
       'device_id': deviceId,
       'device_created_at': deviceCreatedAt,

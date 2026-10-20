@@ -1,0 +1,13 @@
+{
+  "fixture_version": 1,
+  "contract": "ansvk-outreach-certificate-renewal",
+  "contract_version": 1,
+  "api_version": 1,
+  "sync_schema_version": 6,
+  "synthetic_only": true,
+  "files": [
+    "device-messages.json",
+    "invalid-cases.json",
+    "valid-renewal.json"
+  ]
+}

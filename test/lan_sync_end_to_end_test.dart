@@ -4,7 +4,7 @@ import 'dart:io';
 import 'package:ansvk_outreach/database/app_database.dart';
 import 'package:ansvk_outreach/database/outreach_repository.dart';
 import 'package:ansvk_outreach/sync/certificate_fingerprint_store.dart';
-import 'package:ansvk_outreach/sync/configured_manual_sync.dart';
+
 import 'package:ansvk_outreach/sync/dashboard_pairing_service.dart';
 import 'package:ansvk_outreach/sync/device_credential_store.dart';
 import 'package:ansvk_outreach/sync/manual_sync_runner.dart';
@@ -15,8 +15,15 @@ import 'package:ansvk_outreach/sync/sync_status_response.dart';
 import 'package:ansvk_outreach/sync/reviewed_sync_plan.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
+import 'jvm_certificate_test_support.dart';
 
 void main() {
+  late JvmCertificateReader metadataReader;
+  setUpAll(() async {
+    metadataReader = await JvmCertificateReader.create();
+    metadataReader.install();
+  });
+  tearDownAll(() => metadataReader.close());
   for (final restricted in [false, true]) {
     test(
       'APK actual LAN integration (restricted: $restricted)',
@@ -167,17 +174,30 @@ void main() {
           );
         }
 
+        final adminPassword =
+            'Synthetic-${DateTime.now().microsecondsSinceEpoch}-Only!';
         final setup = await post('/api/setup-first-admin', {
           'username': 'synthetic.dart.admin@example.org',
           'name': 'Synthetic Dart Admin',
-          'password':
-              'Synthetic-${DateTime.now().microsecondsSinceEpoch}-Only!',
+          'password': adminPassword,
         });
         expect(setup.status, 200);
+        expect(
+          (await post('/api/outreach/pairing-codes', {}, setup.cookie)).status,
+          403,
+        );
+        bridge.stdin.writeln('{"action":"set-assistant"}');
+        await bridge.stdin.flush();
+        expect((await next())['assistantReady'], true);
+        final assistant = await post('/api/login', {
+          'username': 'synthetic.dart.admin@example.org',
+          'password': adminPassword,
+        });
+        expect(assistant.status, 200);
         final issued = await post(
           '/api/outreach/pairing-codes',
           {},
-          setup.cookie,
+          assistant.cookie,
         );
         expect(issued.status, 201);
         final code = issued.json['pairing']['pairing_code'] as String;
@@ -214,6 +234,16 @@ void main() {
         final initial = await repo.pendingOperations();
         final reviewed = await ReviewedSyncPlan.prepare(repo, builder);
         final replayBatch = reviewed.batches.first;
+        if (!restricted) {
+          final unsupported =
+              jsonDecode(replayBatch.jsonBody) as Map<String, dynamic>;
+          unsupported['schema_version'] = 7;
+          final denied = await statusTransport.send(
+            PreparedSyncBatch(jsonEncode(unsupported)),
+          );
+          expect(denied.httpStatus, 422);
+          expect(denied.response['error_code'], 'unsupported_schema_version');
+        }
         if (restricted) {
           expect((await statusTransport.send(replayBatch)).httpStatus, 403);
           expect(await repo.pendingOperations(), initial);
@@ -228,14 +258,23 @@ void main() {
             403,
           );
         }
-        final service = ConfiguredManualSync(
-          repository: repo,
-          fingerprintStore: pins,
-          credentialStore: credentials,
-          builder: builder,
-          maxBatchesPerRun: 1,
-        );
-        final first = await service.run(reviewedPlan: reviewed);
+        // Legacy upload harness has no trust bootstrap route and uses an
+        // ephemeral port. Keep its pairing/batch/receipt regression at the
+        // transport/runner layer; initial_trust_lan_integration_test exercises
+        // ConfiguredManualSync against production startup with mandatory trust.
+        Future<ManualSyncResult> legacyRun({ReviewedSyncPlan? reviewedPlan}) =>
+            ManualSyncRunner(
+              repository: repo,
+              builder: builder,
+              transport: statusTransport,
+              dashboardId: paired.success!.dashboardId,
+              maxBatchesPerRun: 1,
+              preparedBatches: reviewedPlan?.batches,
+              validateContext: reviewedPlan == null
+                  ? null
+                  : () => reviewedPlan.validate(repo),
+            ).run();
+        final first = await legacyRun(reviewedPlan: reviewed);
         expect(first.outcome, ManualSyncOutcome.uploaded);
         expect(first.markedOperations, 3);
         expect(await repo.pendingOperations(), isEmpty);
@@ -259,6 +298,9 @@ void main() {
           ),
           0,
         );
+        final priorSuccess = (await repo
+            .syncStatus())['last_successful_sync_at'];
+        expect(priorSuccess, isNotNull);
         await repo.updateEncounter(encounter, {
           'remark': 'Synthetic revision',
         }, expectedRevision: 1);
@@ -272,7 +314,7 @@ void main() {
           expectedWorkerId: worker,
         );
         final revisionReview = await ReviewedSyncPlan.prepare(repo, builder);
-        final second = await service.run(reviewedPlan: revisionReview);
+        final second = await legacyRun(reviewedPlan: revisionReview);
         expect(
           second.outcome,
           restricted ? ManualSyncOutcome.stopped : ManualSyncOutcome.uploaded,
@@ -283,7 +325,7 @@ void main() {
           restricted ? revisions : isEmpty,
         );
         if (!restricted) {
-          expect((await service.run()).outcome, ManualSyncOutcome.emptyQueue);
+          expect((await legacyRun()).outcome, ManualSyncOutcome.emptyQueue);
         }
         bridge.stdin.writeln(
           jsonEncode({
@@ -298,7 +340,10 @@ void main() {
         expect(inspected['matching'], isTrue);
         expect(inspected['operationCount'], restricted ? 3 : 5);
         expect(inspected['verifiedBackup'], isTrue);
-        expect((await repo.syncStatus())['last_successful_sync_at'], isNull);
+        expect(
+          (await repo.syncStatus())['last_successful_sync_at'],
+          restricted ? equals(priorSuccess) : isNotNull,
+        );
         bridge.stdin.writeln('{"action":"stop"}');
         expect((await next())['stopped'], isTrue);
         await bridge.stdin.close();

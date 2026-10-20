@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:ansvk_outreach/app.dart';
+import 'package:ansvk_outreach/app_build_version.dart';
 import 'package:ansvk_outreach/auth/auth_service.dart';
 import 'package:ansvk_outreach/auth/session_controller.dart';
 import 'package:ansvk_outreach/database/app_database.dart';
@@ -18,6 +19,11 @@ void main() {
   late TestLocationGateway gps;
   late OutreachRepository repo;
   setUp(() async {
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(
+          AppBuildVersion.channel,
+          (_) async => '0.9.10+25',
+        );
     db = await AppDatabase.open(
       factory: databaseFactoryFfi,
       path: inMemoryDatabasePath,
@@ -30,28 +36,23 @@ void main() {
     );
   });
   tearDown(() async {
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(AppBuildVersion.channel, null);
     session.dispose();
     await db.close();
   });
 
   Future<void> flush(WidgetTester tester) async {
-    await tester.runAsync(() async {
-      // Drain serialized SQLite work and its Dart completion callbacks.
-      for (var i = 0; i < 8; i++) {
-        await db.connection.rawQuery('SELECT 1');
-      }
-    });
-    await tester.pump();
-  }
-
-  Future<void> tap(WidgetTester tester, Finder finder) async {
-    FocusManager.instance.primaryFocus?.unfocus();
-    await tester.pump();
-    await tester.ensureVisible(finder);
-    await tester.pump(const Duration(milliseconds: 300));
-    await tester.tap(finder);
-    await flush(tester);
-    await tester.pump(const Duration(milliseconds: 300));
+    // Native metadata can complete at a frame boundary before SQLite work
+    // starts. Drain both stages instead of assuming all I/O starts on the tap.
+    for (var round = 0; round < 3; round++) {
+      await tester.runAsync(() async {
+        for (var i = 0; i < 8; i++) {
+          await db.connection.rawQuery('SELECT 1');
+        }
+      });
+      await tester.pump();
+    }
   }
 
   Finder visibleListScrollable() => find
@@ -60,6 +61,26 @@ void main() {
         matching: find.byType(Scrollable),
       )
       .first;
+
+  Future<void> tap(WidgetTester tester, Finder finder) async {
+    FocusManager.instance.primaryFocus?.unfocus();
+    await tester.pump();
+    if (finder.evaluate().isEmpty &&
+        find.byType(ListView).evaluate().isNotEmpty) {
+      await tester.scrollUntilVisible(
+        finder,
+        200,
+        scrollable: visibleListScrollable(),
+      );
+    }
+    await tester.ensureVisible(finder);
+    await tester.pump(const Duration(milliseconds: 300));
+    await tester.ensureVisible(finder);
+    await tester.pump();
+    await tester.tap(finder);
+    await flush(tester);
+    await tester.pump(const Duration(milliseconds: 300));
+  }
 
   Future<void> start(WidgetTester tester) async {
     await tester.runAsync(
@@ -94,6 +115,7 @@ void main() {
       await tester.enterText(find.byKey(const ValueKey('peer-1')), 'Peer Two');
       await tap(tester, find.byKey(const ValueKey('save-hotspot')));
       expect(find.text('Hotspot A'), findsOneWidget);
+      await tap(tester, find.byKey(const ValueKey('return-to-hotspots')));
       expect(find.text('Peer One, Peer Two'), findsOneWidget);
       gps.serviceEnabled = false;
       await tap(tester, find.byKey(const ValueKey('new-hotspot')));
@@ -103,6 +125,7 @@ void main() {
         'Hotspot B',
       );
       await tap(tester, find.byKey(const ValueKey('save-hotspot')));
+      await tap(tester, find.byKey(const ValueKey('return-to-hotspots')));
       expect(find.text('Hotspot A'), findsOneWidget);
       expect(find.text('Hotspot B'), findsOneWidget);
       await tester.enterText(
@@ -228,13 +251,25 @@ void main() {
     expect(find.text('Sync status'), findsOneWidget);
     expect(find.text('Desktop connection'), findsOneWidget);
     expect(
-      find.textContaining('Sending records is not enabled yet'),
+      find.textContaining('Tap Sync while connected to the office network'),
       findsOneWidget,
     );
     expect(find.text('Pending changes'), findsOneWidget);
     expect(find.byKey(const ValueKey('scan-dashboard-qr')), findsOneWidget);
     expect(find.text('3'), findsOneWidget);
+    await tester.scrollUntilVisible(
+      find.byKey(const ValueKey('normal-sync')),
+      150,
+      scrollable: visibleListScrollable(),
+    );
+    expect(
+      tester
+          .widget<FilledButton>(find.byKey(const ValueKey('normal-sync')))
+          .onPressed,
+      isNull,
+    );
     final beforePreparation = await tester.runAsync(repo.pendingOperations);
+    await tap(tester, find.byKey(const ValueKey('sync-technical-toggle')));
     await tap(tester, find.byKey(const ValueKey('prepare-sync-batches')));
     await flush(tester);
     expect(
@@ -267,9 +302,12 @@ void main() {
     await tap(tester, find.byKey(const ValueKey('refresh-sync-status')));
     expect(find.text('Local preparation'), findsNothing);
     expect(find.byKey(const ValueKey('review-first-sync-batch')), findsNothing);
+    if (find.text('Address').evaluate().isEmpty) {
+      await tap(tester, find.byKey(const ValueKey('sync-technical-toggle')));
+    }
     await tester.scrollUntilVisible(
       find.text('Not configured'),
-      -100,
+      100,
       scrollable: visibleListScrollable(),
     );
     expect(find.text('Not configured'), findsOneWidget);
@@ -296,7 +334,7 @@ void main() {
     expect(find.text('Retention safety'), findsOneWidget);
     expect(find.text('Keep days on phone'), findsOneWidget);
     expect(find.text('Old client records'), findsOneWidget);
-    expect(find.text('Held because unsynced'), findsOneWidget);
+    expect(find.text('Held without complete sync proof'), findsOneWidget);
     expect(find.text('Eligible after acknowledgement'), findsOneWidget);
     expect(find.text('Cleanup enabled'), findsOneWidget);
     await tester.scrollUntilVisible(
@@ -316,7 +354,7 @@ void main() {
     expect(find.text('ANSVK Outreach'), findsWidgets);
     await tester.scrollUntilVisible(
       find.text('View pending changes'),
-      200,
+      -200,
       scrollable: visibleListScrollable(),
     );
     expect(find.text('View pending changes'), findsOneWidget);
@@ -354,6 +392,7 @@ void main() {
       await tester.runAsync(() => db.connection.delete('sync_outbox'));
       await tester.pumpWidget(OutreachApp(session: session, hasAccounts: true));
       await tap(tester, find.byKey(const ValueKey('open-sync-status')));
+      await tap(tester, find.byKey(const ValueKey('sync-technical-toggle')));
       await tap(tester, find.byKey(const ValueKey('prepare-sync-batches')));
       expect(
         find.text('No pending changes to prepare. No data was sent.'),
@@ -372,6 +411,7 @@ void main() {
     );
     await tester.pumpWidget(OutreachApp(session: session, hasAccounts: true));
     await tap(tester, find.byKey(const ValueKey('open-sync-status')));
+    await tap(tester, find.byKey(const ValueKey('sync-technical-toggle')));
     await tap(tester, find.byKey(const ValueKey('prepare-sync-batches')));
     await flush(tester);
     expect(
@@ -401,6 +441,7 @@ void main() {
       final before = await tester.runAsync(repo.pendingOperations);
       await tester.pumpWidget(OutreachApp(session: session, hasAccounts: true));
       await tap(tester, find.byKey(const ValueKey('open-sync-status')));
+      await tap(tester, find.byKey(const ValueKey('sync-technical-toggle')));
       await tap(tester, find.byKey(const ValueKey('prepare-sync-batches')));
       expect(
         find.text(
@@ -532,10 +573,9 @@ void main() {
     );
     await tap(tester, find.byKey(const ValueKey('open-today-records')));
     await tap(tester, find.text('2026/MY/0088'));
-    await tester.scrollUntilVisible(
-      find.byKey(const ValueKey('edit-record')),
-      200,
-      scrollable: find.byType(Scrollable).last,
+    expect(
+      find.byKey(const ValueKey('edit-record')).hitTestable(),
+      findsOneWidget,
     );
     await tap(tester, find.byKey(const ValueKey('edit-record')));
     expect(find.text('Edit record'), findsOneWidget);
@@ -572,7 +612,7 @@ void main() {
       scrollable: editScroll,
     );
     await tester.enterText(find.byKey(const ValueKey('remark')), 'After edit');
-    await tap(tester, find.byKey(const ValueKey('update-record-top')));
+    await tap(tester, find.byKey(const ValueKey('save-encounter')));
     expect(find.text("Today's records"), findsOneWidget);
     expect(find.textContaining('Edit Site - Old - Tested HIV'), findsOneWidget);
     final record = await tester.runAsync(() => repo.encounter(id!));

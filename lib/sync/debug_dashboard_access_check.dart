@@ -4,6 +4,8 @@ import '../database/outreach_repository.dart';
 import 'certificate_fingerprint_store.dart';
 import 'device_credential_store.dart';
 import 'secure_sync_transport.dart';
+import 'initial_certificate_trust.dart';
+import 'lifecycle_gate.dart';
 
 /// A read-only credential check used only by the debug/UAT APK.
 ///
@@ -23,12 +25,24 @@ class DebugDashboardAccessCheck {
   final SyncHttpsConnector? connector;
 
   Future<String> run() async {
+    try {
+      return await LifecycleGate.run(_run);
+    } catch (_) {
+      return 'Dashboard trust is not confirmed. Retry Sync first. No records were sent.';
+    }
+  }
+
+  Future<String> _run() async {
     assert(kDebugMode, 'Dashboard access check is debug-only');
     final config = await repository.dashboardPairingPreparation();
-    final fingerprint = await fingerprintStore.read();
-    if (config['status'] != 'Paired' ||
-        config['dashboard_url'] is! String ||
-        fingerprint == null) {
+    final trust = InitialCertificateTrust(
+      repository: repository,
+      legacyPins: fingerprintStore,
+      credentials: credentialStore,
+    );
+    final token = repository.sessionToken;
+    final fingerprint = await trust.confirmedPin();
+    if (config['status'] != 'Paired' || config['dashboard_url'] is! String) {
       return 'Dashboard access is not configured for this phone.';
     }
     try {
@@ -37,6 +51,12 @@ class DebugDashboardAccessCheck {
         fingerprint: fingerprint,
         credentialStore: credentialStore,
         connector: connector,
+        beforeSend: () async {
+          if (repository.sessionToken != token ||
+              await trust.confirmedPin() != fingerprint) {
+            throw StateError('Session/trust changed');
+          }
+        },
       ).checkStatus();
       if (reply.httpStatus == 200 && reply.response['ok'] == true) {
         return 'Dashboard access is active. No records were sent.';

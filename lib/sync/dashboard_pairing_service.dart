@@ -4,7 +4,7 @@ import 'dart:io';
 
 import '../database/outreach_repository.dart';
 import 'certificate_fingerprint_store.dart';
-import 'dashboard_certificate_checker.dart';
+import 'peer_certificate_verifier.dart';
 import 'device_credential_store.dart';
 import 'pairing_request_builder.dart';
 import 'pairing_response.dart';
@@ -14,17 +14,24 @@ class DashboardPairingService {
     required this.repository,
     required this.credentialStore,
     required this.requestBuilder,
-    PairingTransport? transport,
-  }) : transport = transport ?? const SecureSocketPairingTransport();
+    this.transport,
+    this.sessionToken,
+  });
 
+  final String? sessionToken;
   final OutreachRepository repository;
   final DeviceCredentialStore credentialStore;
   final PairingRequestBuilder requestBuilder;
-  final PairingTransport transport;
+  final PairingTransport? transport;
 
   Future<DashboardPairingAttemptResult> pair({
     required String expectedCertificateFingerprint,
   }) async {
+    final token = sessionToken ?? repository.sessionToken;
+    if (repository.currentWorkerId() == null ||
+        repository.sessionToken != token) {
+      throw StateError('Session changed');
+    }
     final config = await repository.dashboardPairingPreparation();
     if (config['status'] == 'Paired') {
       return const DashboardPairingAttemptResult.invalidConfiguration(
@@ -64,7 +71,22 @@ class DashboardPairingService {
 
     PairingTransportResponse response;
     try {
-      response = await transport.postJson(
+      final snapshot = jsonEncode(config);
+      final effectiveTransport =
+          transport ??
+          SecureSocketPairingTransport(
+            beforeSend: () async {
+              if (repository.sessionToken != token ||
+                  jsonEncode(await repository.dashboardPairingPreparation()) !=
+                      snapshot) {
+                throw StateError('Pairing context changed');
+              }
+              if (repository.sessionToken != token) {
+                throw StateError('Session changed');
+              }
+            },
+          );
+      response = await effectiveTransport.postJson(
         _pairingUri(baseUri),
         jsonEncode(request),
         expectedCertificateFingerprint: fingerprint,
@@ -107,7 +129,9 @@ class DashboardPairingService {
 
     final success = parsed as PairingSuccess;
     try {
+      if (repository.sessionToken != token) throw StateError('Session changed');
       await credentialStore.write(success.deviceCredential);
+      if (repository.sessionToken != token) throw StateError('Session changed');
       await repository.applyDashboardPairing(success);
     } catch (_) {
       await credentialStore.clear();
@@ -166,9 +190,13 @@ class PairingTransportException implements Exception {
 class SecureSocketPairingTransport implements PairingTransport {
   const SecureSocketPairingTransport({
     this.timeout = const Duration(seconds: 30),
+    this.certificateVerifier,
+    this.beforeSend,
   });
 
   final Duration timeout;
+  final PeerCertificateVerifier? certificateVerifier;
+  final Future<void> Function()? beforeSend;
 
   @override
   Future<PairingTransportResponse> postJson(
@@ -206,13 +234,25 @@ class SecureSocketPairingTransport implements PairingTransport {
           'Dashboard did not present a certificate.',
         );
       }
-      final actual = await DashboardCertificateChecker.sha256Hex(
-        certificate.der,
-      );
-      if (actual != expected) {
+      try {
+        final verifier = certificateVerifier ?? PeerCertificateVerifier();
+        final validity = await verifier.verify(
+          endpoint: uri,
+          der: certificate.der,
+          fingerprint: expected,
+        );
+        await beforeSend?.call();
+        validity.check(verifier.clock());
+      } on CertificateVerificationFailure catch (failure) {
+        if (failure.code == 'fingerprint_mismatch') {
+          throw const PairingTransportException(
+            'dashboard_certificate_changed',
+            'Dashboard certificate does not match the approved fingerprint.',
+          );
+        }
         throw const PairingTransportException(
-          'dashboard_certificate_changed',
-          'Dashboard certificate does not match the approved fingerprint.',
+          'untrusted_dashboard_certificate',
+          'Dashboard certificate could not be verified. Ask the data assistant to check its dates and address.',
         );
       }
 

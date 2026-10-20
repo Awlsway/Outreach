@@ -1,0 +1,112 @@
+{
+  "fixture_version": 1,
+  "synthetic_only": true,
+  "bootstrap_request": {
+    "api_version": 1,
+    "protocol": "ansvk-outreach-sync",
+    "protocol_version": 1,
+    "action": "bootstrap",
+    "project_id": "ansvk_outreach",
+    "dashboard_id": "73f9bbf4-8a28-4e22-83de-6b6b778cb93e",
+    "device_id": "e377bd32-352c-4d17-bf25-b32842132b16",
+    "worker_id": "b5095f0e-4559-48df-87f5-2ba10e6582f1",
+    "api_base_url": "https://192.168.1.50:3443/api/v1",
+    "certificate_sha256": "1111111111111111111111111111111111111111111111111111111111111111"
+  },
+  "bootstrap_response": {
+    "ok": true,
+    "request_id": "req-bootstrap-01",
+    "action": "bootstrap",
+    "bootstrap_id": "b9f03378-6a1b-4ec1-956d-2b3024f82a2f",
+    "dashboard_id": "73f9bbf4-8a28-4e22-83de-6b6b778cb93e",
+    "project_id": "ansvk_outreach",
+    "device_id": "e377bd32-352c-4d17-bf25-b32842132b16",
+    "worker_id": "b5095f0e-4559-48df-87f5-2ba10e6582f1",
+    "api_base_url": "https://192.168.1.50:3443/api/v1",
+    "certificate_sha256": "1111111111111111111111111111111111111111111111111111111111111111",
+    "generation": 1,
+    "renewal_authority": {
+      "authority_id": "08e69175-714c-4094-a0e5-b3e91b743b7f",
+      "kid": "5a9eca5fd6c1f39ed8b8807225da2d8f67edd7077cb4a40160e358ac204caf97",
+      "public_jwk": {
+        "kty": "OKP",
+        "crv": "Ed25519",
+        "x": "EGKnjVWodP2w9WXdn4Xoi8sb4aEi3tdOSKrtFkD_FRY",
+        "kid": "5a9eca5fd6c1f39ed8b8807225da2d8f67edd7077cb4a40160e358ac204caf97"
+      },
+      "not_before": 1788220800,
+      "expires_at": 1945987200
+    }
+  },
+  "bootstrap_confirmation_request": {
+    "api_version": 1,
+    "protocol": "ansvk-outreach-sync",
+    "protocol_version": 1,
+    "action": "confirm_bootstrap",
+    "bootstrap_id": "b9f03378-6a1b-4ec1-956d-2b3024f82a2f",
+    "authority_kid": "5a9eca5fd6c1f39ed8b8807225da2d8f67edd7077cb4a40160e358ac204caf97",
+    "certificate_sha256": "1111111111111111111111111111111111111111111111111111111111111111",
+    "generation": 1
+  },
+  "bootstrap_confirmation_response": {
+    "ok": true,
+    "request_id": "req-bootstrap-confirm-01",
+    "action": "confirm_bootstrap",
+    "bootstrap_id": "b9f03378-6a1b-4ec1-956d-2b3024f82a2f",
+    "authority_kid": "5a9eca5fd6c1f39ed8b8807225da2d8f67edd7077cb4a40160e358ac204caf97",
+    "certificate_sha256": "1111111111111111111111111111111111111111111111111111111111111111",
+    "generation": 1,
+    "state": "confirmed"
+  },
+  "claim_request": {
+    "api_version": 1,
+    "protocol": "ansvk-outreach-sync",
+    "protocol_version": 1,
+    "grant_id": "bd09afef-962e-4ba0-9a5b-e25b840dbde2",
+    "grant_digest": "550c6492871858c6ee81db791f9cef0827fa84741716b5e2a358ea5e52cd31a9"
+  },
+  "claim_response": {
+    "ok": true,
+    "request_id": "req-claim-01",
+    "receipt": {
+      "receipt_id": "76013d86-97ac-40a8-a1c0-e85d55746e66",
+      "grant_id": "bd09afef-962e-4ba0-9a5b-e25b840dbde2",
+      "grant_digest": "550c6492871858c6ee81db791f9cef0827fa84741716b5e2a358ea5e52cd31a9",
+      "dashboard_id": "73f9bbf4-8a28-4e22-83de-6b6b778cb93e",
+      "project_id": "ansvk_outreach",
+      "device_id": "e377bd32-352c-4d17-bf25-b32842132b16",
+      "worker_id": "b5095f0e-4559-48df-87f5-2ba10e6582f1",
+      "api_base_url": "https://192.168.1.50:3443/api/v1",
+      "from_certificate_sha256": "1111111111111111111111111111111111111111111111111111111111111111",
+      "from_generation": 1,
+      "to_certificate_sha256": "2222222222222222222222222222222222222222222222222222222222222222",
+      "to_generation": 2,
+      "claimed_at": 1790668830
+    }
+  },
+  "confirmation_request": {
+    "api_version": 1,
+    "protocol": "ansvk-outreach-sync",
+    "protocol_version": 1,
+    "receipt_id": "76013d86-97ac-40a8-a1c0-e85d55746e66",
+    "grant_id": "bd09afef-962e-4ba0-9a5b-e25b840dbde2",
+    "grant_digest": "550c6492871858c6ee81db791f9cef0827fa84741716b5e2a358ea5e52cd31a9",
+    "dashboard_id": "73f9bbf4-8a28-4e22-83de-6b6b778cb93e",
+    "project_id": "ansvk_outreach",
+    "device_id": "e377bd32-352c-4d17-bf25-b32842132b16",
+    "worker_id": "b5095f0e-4559-48df-87f5-2ba10e6582f1",
+    "api_base_url": "https://192.168.1.50:3443/api/v1",
+    "certificate_sha256": "2222222222222222222222222222222222222222222222222222222222222222",
+    "generation": 2
+  },
+  "confirmation_response": {
+    "ok": true,
+    "request_id": "req-confirm-01",
+    "receipt_id": "76013d86-97ac-40a8-a1c0-e85d55746e66",
+    "grant_digest": "550c6492871858c6ee81db791f9cef0827fa84741716b5e2a358ea5e52cd31a9",
+    "device_id": "e377bd32-352c-4d17-bf25-b32842132b16",
+    "certificate_sha256": "2222222222222222222222222222222222222222222222222222222222222222",
+    "generation": 2,
+    "state": "confirmed"
+  }
+}

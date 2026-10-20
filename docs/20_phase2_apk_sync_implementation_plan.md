@@ -80,7 +80,7 @@ Implementation notes:
 - The pairing code must be exactly six digits. Leading zeros are preserved.
 - The full approved certificate SHA-256 fingerprint is normalized and stored in secure storage, not SQLite.
 - Sync Status shows only a short fingerprint hint.
-- The full APK SQLite schema remains version 6, matching the accepted v1 fixture contract.
+- Synced payload schema remains 6, matching accepted v1 fixtures. APK local storage is independently version 7 for retention metadata (27 September 2026 LAN-approved compatibility note).
 - Phone test: a release-signed P2.1 test APK was installed on `ORCE49UWDQVGRC49`; the user reported that the preparation flow behaved as instructed and still did not sync.
 
 ### P2.2 Certificate fingerprint pinning

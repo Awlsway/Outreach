@@ -18,7 +18,7 @@ Out of scope: Windows dashboard implementation, desktop exports, other workers' 
 | --- | --- | --- | --- |
 | M1: Requirements baseline | Screen flow, field dictionary, validation rules, summary definitions, decision log | Existing requirements | Every confirmed requirement has a work package and acceptance check; unresolved choices are explicitly marked |
 | M2: Technical foundation | Technology decision, Android compatibility target, app scaffold, local schema, migrations, storage and credential design | M1; device information for compatibility | App installs on a representative phone; local data survives restart; ownership and duplicate constraints are demonstrated |
-| M3: Accounts and hotspots | Offline self-registration, login/logout, inactivity lock, searchable own-hotspot list, creation and GPS fallback | M2 | Accounts work offline; isolation holds; one-minute lock works; hotspot creation succeeds with and without location |
+| M3: Accounts and hotspots | Offline self-registration, login/logout, inactivity lock, searchable own-hotspot list, creation and GPS fallback | M2 | Accounts work offline; isolation holds; four-minute lock works; hotspot creation succeeds with and without location |
 | M4: Encounter workflow | New/Old forms, defaults, quantity validation, save/reset, own-record list, edit/delete and audit history | M3 | Complete offline create/edit/delete flow passes; duplicate rule holds on edits and rapid saves; audit changes are atomic |
 | M5: Daily summary | Daily hotspot, unique clients served, HIV-tested and supply totals; summary navigation | M4 | Known sample data yields exact totals; clients deduplicate by client code across hotspots; edits/deletes update totals; other accounts and other days are excluded |
 | M6: Future sync preparation | Persistent change queue, revision tracking, draft API contract, acknowledgement and retention logic tested using a development-only fake service | M4 | Retry, interruption and cleanup checks pass in development; production app cannot mark data synced without a real acknowledgement |
@@ -61,7 +61,7 @@ Use synthetic client information during development and testing.
 | --- | --- | --- |
 | A01 | Register, restart, log in and enter a visit in airplane mode | All work without internet; saved data survives restart |
 | A02 | Access another local account's records through list, detail, update and delete paths | Access denied; own records remain accessible |
-| A03 | Leave an open client form inactive for 60 seconds; also background and return after the timeout | App is locked and sensitive content concealed; unlock restores the draft |
+| A03 | Leave an open client form inactive for four minutes; also background and return after the timeout | App is locked and sensitive content concealed; unlock restores the draft |
 | A04 | Create hotspot with GPS available, unavailable, or permission denied | Valid location stored when available; fallback allows proceeding; generated ID and creator stored |
 | A05 | Search existing hotspots and inspect available actions | Own matching hotspots selectable; name/peer editing unavailable |
 | A06 | Select New and then Old | New modal exposes exact choices/defaults in 01_plan.md; Old does not load prior client information |

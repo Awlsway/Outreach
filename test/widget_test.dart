@@ -23,6 +23,18 @@ void main() {
     await db.close();
   });
 
+  Future<void> settleLocalHome(WidgetTester tester) async {
+    // Native SQLite reads start after the authenticated shell mounts.
+    for (var round = 0; round < 3; round++) {
+      await tester.runAsync(() async {
+        for (var i = 0; i < 10; i++) {
+          await db.connection.rawQuery('SELECT 1');
+        }
+      });
+      await tester.pump();
+    }
+  }
+
   testWidgets(
     'registration and sign-in eye buttons preserve text and toggle independently',
     (tester) async {
@@ -105,6 +117,8 @@ void main() {
           }
           expect(session.busy, isFalse);
         });
+        await tester.pump();
+        await settleLocalHome(tester);
         await tester.pumpAndSettle();
       }
 
@@ -151,6 +165,7 @@ void main() {
         () => session.signIn('Alice', 'password1', register: true),
       );
       await tester.pumpWidget(OutreachApp(session: session, hasAccounts: true));
+      await settleLocalHome(tester);
       session.lock();
       await tester.pump();
       expect(find.text('App locked'), findsOneWidget);
@@ -174,25 +189,27 @@ void main() {
   });
 
   testWidgets(
-    'one minute locks, activity resets timer and locked content is inaccessible',
+    'four minutes locks, activity resets timer and locked content is inaccessible',
     (tester) async {
       await tester.runAsync(
         () => session.signIn('Alice', 'password1', register: true),
       );
       await tester.pumpWidget(OutreachApp(session: session, hasAccounts: true));
+      await settleLocalHome(tester);
       session.activity();
-      await tester.pump(const Duration(seconds: 59));
-      expect(find.text('You are signed in'), findsOneWidget);
+      await tester.pump(const Duration(minutes: 3, seconds: 59));
+      expect(find.byKey(const ValueKey('today-home-heading')), findsOneWidget);
       session.activity();
-      await tester.pump(const Duration(seconds: 59));
+      await tester.pump(const Duration(minutes: 3, seconds: 59));
       expect(session.locked, isFalse);
       await tester.pump(const Duration(seconds: 1));
       expect(find.text('App locked'), findsOneWidget);
-      expect(find.text('You are signed in'), findsNothing);
+      expect(find.byKey(const ValueKey('today-home-heading')), findsNothing);
       expect(session.currentWorkerId, isNull);
       await tester.runAsync(() => session.unlock('password1'));
       await tester.pump();
-      expect(find.text('You are signed in'), findsOneWidget);
+      await settleLocalHome(tester);
+      expect(find.byKey(const ValueKey('today-home-heading')), findsOneWidget);
       await tester.tap(find.byTooltip('Sign out'));
       await tester.pump();
       expect(find.byKey(const ValueKey('username')), findsOneWidget);

@@ -85,7 +85,7 @@ Confirm these items:
 - The application ID remains `org.ansvk.ansvk_outreach`.
 - The version/build number is higher than the previous installed APK.
 - The phone test script in `17_pre_pilot_readiness.md` passes using dummy data.
-- Everyone understands that real dashboard sync is not implemented yet.
+- Everyone understands that development sync has passed with synthetic data and real-data deployment requires the office gates in `40_final_sync_release_checks.md`.
 
 ## Current status
 
@@ -99,3 +99,6 @@ Release APK built successfully on 15 September 2026:
 - SHA-256: `0F1DDB75304B0B2467C0DE1FC2EDF057DC1F0420C3F5B2D18B853D23176E76AB`
 
 The release APK still needs one-phone release install/update testing with dummy data before worker handover.
+
+
+27 September 2026: signed candidate 0.9.10+25 built, signature verified and installed fresh. SHA-256 and current acceptance gates are in 40_final_sync_release_checks.md. Private signing files remain ignored.

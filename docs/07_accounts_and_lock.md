@@ -11,7 +11,7 @@ Account increment: 0.2.1+3. SQLite schema version: 2. Hotspot screens were subse
 - Successful registration signs the worker in. A second local account can be created from the sign-in page, with a distinct worker identity.
 - Login and password unlock work entirely offline. A successful login creates only an in-memory session; restarting the process requires login again.
 - Signed-in home shows the username, manual lock and logout controls. Hotspot/client screens remain outside this change.
-- One minute without input locks the session. Touch activity resets the deadline while foregrounded and unlocked. Returning from another app does not reset the deadline.
+- Four minutes without input locks the session. Touch activity resets the deadline while foregrounded and unlocked. Returning from another app does not reset the deadline.
 - Background/inactive state immediately covers the app and blocks repository access. Returning after the deadline requires the password. The signed-in subtree remains mounted behind the lock to support future in-memory drafts.
 - A pending authentication result cannot restore a session after logout/disposal.
 - Five failed attempts trigger a persisted 30-second cooldown for that account. Unknown accounts and wrong passwords return the same generic message.
@@ -38,7 +38,7 @@ The older profile-only database API cannot create a usable login. Existing test/
 
 ## Validation
 
-Code analysis passes. All 19 tests pass: existing database coverage plus registration rollback, credential exclusion from audit data, wrong/unknown login, cooldown persistence, migration/reopen, owner isolation, background timeout, successful form submission, confirmation mismatch, logout/login, and the exact 60-second lock timer. The real production hasher is tested separately for unique salts and correct/incorrect password verification; UI/service tests use a test-only fast hasher.
+The initial account increment passed analysis and 19 tests, including the original 60-second lock timer. The inactivity deadline was later increased to four minutes at the project owner's request; current validation is recorded in 05_build_status.md. The real production hasher is tested separately for unique salts and correct/incorrect password verification; UI/service tests use a test-only fast hasher.
 
 Phone installation and launch evidence is recorded in 05_build_status.md. Automated tests are not a claim that the user has completed their phone walkthrough.
 
@@ -46,10 +46,10 @@ Phone installation and launch evidence is recorded in 05_build_status.md. Automa
 
 1. Create your account and remember its password.
 2. Check the signed-in username at the bottom.
-3. Leave the app untouched for one minute, then unlock with the password.
+3. Leave the app untouched for four minutes, then unlock with the password.
 4. Use Sign out, then sign in again.
 5. Close/reopen the app and confirm it asks you to sign in.
-6. Send it to the background for over one minute and verify the lock on return.
+6. Send it to the background for over four minutes and verify the lock on return.
 
 ## Remaining work
 

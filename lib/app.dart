@@ -6,6 +6,8 @@ import 'hotspots/hotspot_workspace.dart';
 import 'hotspots/location_service.dart';
 import 'sync/certificate_fingerprint_store.dart';
 import 'sync/device_credential_store.dart';
+import 'sync/secure_sync_transport.dart';
+import 'sync/certificate_renewal_page.dart';
 
 class OutreachApp extends StatefulWidget {
   const OutreachApp({
@@ -15,12 +17,16 @@ class OutreachApp extends StatefulWidget {
     this.location,
     this.certificateFingerprintStore,
     this.deviceCredentialStore,
+    this.syncConnector,
+    this.renewalScannerBuilder,
   });
   final SessionController session;
   final bool hasAccounts;
   final HotspotLocationService? location;
   final CertificateFingerprintStore? certificateFingerprintStore;
   final DeviceCredentialStore? deviceCredentialStore;
+  final SyncHttpsConnector? syncConnector;
+  final RenewalScannerBuilder? renewalScannerBuilder;
 
   @override
   State<OutreachApp> createState() => _OutreachAppState();
@@ -55,6 +61,8 @@ class _OutreachAppState extends State<OutreachApp> with WidgetsBindingObserver {
       useMaterial3: true,
       inputDecorationTheme: const InputDecorationTheme(
         border: OutlineInputBorder(),
+        helperMaxLines: 4,
+        errorMaxLines: 6,
       ),
     ),
     home: Listener(
@@ -86,6 +94,8 @@ class _OutreachAppState extends State<OutreachApp> with WidgetsBindingObserver {
                       certificateFingerprintStore:
                           widget.certificateFingerprintStore,
                       deviceCredentialStore: widget.deviceCredentialStore,
+                      syncConnector: widget.syncConnector,
+                      renewalScannerBuilder: widget.renewalScannerBuilder,
                     ),
                   ),
                 ),
@@ -206,10 +216,13 @@ class _AuthFormState extends State<AuthForm> {
                       size: 52,
                     ),
                     const SizedBox(height: 20),
-                    Text(
-                      title,
-                      style: Theme.of(context).textTheme.headlineSmall,
-                      textAlign: TextAlign.center,
+                    Semantics(
+                      header: true,
+                      child: Text(
+                        title,
+                        style: Theme.of(context).textTheme.headlineSmall,
+                        textAlign: TextAlign.center,
+                      ),
                     ),
                     const SizedBox(height: 8),
                     Text(
@@ -330,12 +343,15 @@ class _AuthFormState extends State<AuthForm> {
                     ],
                     if (_error != null) ...[
                       const SizedBox(height: 16),
-                      Text(
-                        _error!,
-                        style: TextStyle(
-                          color: Theme.of(context).colorScheme.error,
+                      Semantics(
+                        liveRegion: true,
+                        child: Text(
+                          _error!,
+                          style: TextStyle(
+                            color: Theme.of(context).colorScheme.error,
+                          ),
+                          semanticsLabel: _error,
                         ),
-                        semanticsLabel: _error,
                       ),
                     ],
                     const SizedBox(height: 24),

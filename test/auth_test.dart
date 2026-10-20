@@ -134,7 +134,7 @@ void main() {
     await session.signIn('Alice', 'password1', register: true);
     session.setForeground(false);
     expect(session.currentWorkerId, isNull);
-    now = now.add(const Duration(seconds: 59));
+    now = now.add(const Duration(minutes: 3, seconds: 59));
     session.setForeground(true);
     expect(session.locked, isFalse);
     session.setForeground(false);
@@ -176,7 +176,10 @@ void main() {
         );
         var service = AuthService(upgraded, hasher: TestHasher());
         final worker = await service.register('Alice', 'password1');
-        expect(await upgraded.connection.getVersion(), 6);
+        expect(
+          await upgraded.connection.getVersion(),
+          AppDatabase.schemaVersion,
+        );
         expect(
           (await upgraded.connection.query('hotspots')).single['name'],
           'Saved site',

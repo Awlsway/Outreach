@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:sqflite_common/sqlite_api.dart';
@@ -45,6 +47,8 @@ class EncounterForm extends StatefulWidget {
 
 class _EncounterFormState extends State<EncounterForm> {
   final _form = GlobalKey<FormState>();
+  final _scroll = ScrollController();
+  final _clientNumberFocus = FocusNode();
   final _clientYear = TextEditingController(
     text: DateTime.now().year.toString(),
   );
@@ -117,6 +121,8 @@ class _EncounterFormState extends State<EncounterForm> {
 
   @override
   void dispose() {
+    _scroll.dispose();
+    _clientNumberFocus.dispose();
     _clientYear.dispose();
     _clientNumber.dispose();
     _remark.dispose();
@@ -235,25 +241,37 @@ class _EncounterFormState extends State<EncounterForm> {
     return submitted ?? false;
   }
 
-  DropdownButtonFormField<T> _choice<T>(
+  Widget _choice<T>(
     String fieldLabel,
     T value,
     List<T> choices,
     ValueChanged<T?> onChanged, {
     String Function(T)? choiceLabel,
-  }) => DropdownButtonFormField<T>(
-    key: ValueKey('new-client-$fieldLabel'),
-    initialValue: value,
-    decoration: InputDecoration(labelText: fieldLabel),
-    items: choices
-        .map(
-          (choice) => DropdownMenuItem(
-            value: choice,
-            child: Text(choiceLabel?.call(choice) ?? choice.toString()),
-          ),
-        )
-        .toList(),
-    onChanged: onChanged,
+  }) => Column(
+    crossAxisAlignment: CrossAxisAlignment.stretch,
+    children: [
+      Text(fieldLabel),
+      const SizedBox(height: 8),
+      Semantics(
+        label: fieldLabel,
+        child: DropdownButtonFormField<T>(
+          key: ValueKey('new-client-$fieldLabel'),
+          initialValue: value,
+          isExpanded: true,
+          itemHeight: null,
+          decoration: const InputDecoration(),
+          items: choices
+              .map(
+                (choice) => DropdownMenuItem(
+                  value: choice,
+                  child: Text(choiceLabel?.call(choice) ?? choice.toString()),
+                ),
+              )
+              .toList(),
+          onChanged: onChanged,
+        ),
+      ),
+    ],
   );
 
   int? _quantity(String field) {
@@ -265,7 +283,33 @@ class _EncounterFormState extends State<EncounterForm> {
       '${_clientYear.text.trim()}/MY/${_clientNumber.text.trim().padLeft(4, '0')}';
 
   Future<void> _save() async {
-    if (_saving || !_form.currentState!.validate()) return;
+    if (_saving) return;
+    final invalid = _form.currentState!.validateGranularly();
+    if (invalid.isNotEmpty) {
+      setState(() => _message = null);
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted || widget.session.currentWorkerId == null) return;
+        final fields = invalid.where((field) => field.mounted).toList()
+          ..sort((a, b) {
+            final first = a.context.findRenderObject() as RenderBox;
+            final second = b.context.findRenderObject() as RenderBox;
+            return first
+                .localToGlobal(Offset.zero)
+                .dy
+                .compareTo(second.localToGlobal(Offset.zero).dy);
+          });
+        if (fields.isNotEmpty) {
+          unawaited(
+            Scrollable.ensureVisible(
+              fields.first.context,
+              alignment: 0.1,
+              duration: const Duration(milliseconds: 200),
+            ),
+          );
+        }
+      });
+      return;
+    }
     for (final field in _quantities.keys) {
       if (_quantity(field) == null) {
         setState(
@@ -325,7 +369,18 @@ class _EncounterFormState extends State<EncounterForm> {
             ? 'Record updated.'
             : 'Record saved. Enter the next client.';
       });
-      if (_editing) widget.onSaved?.call();
+      if (_editing) {
+        widget.onSaved?.call();
+      } else {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (!mounted) return;
+          // Reflect the same reset defaults in FormField display state too.
+          _form.currentState?.reset();
+          if (widget.session.currentWorkerId == null) return;
+          if (_scroll.hasClients) _scroll.jumpTo(0);
+          _clientNumberFocus.requestFocus();
+        });
+      }
     } on DatabaseException catch (error) {
       if (!mounted) return;
       setState(() {
@@ -380,69 +435,95 @@ class _EncounterFormState extends State<EncounterForm> {
     child: Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          label,
-          style: Theme.of(context).textTheme.titleMedium?.copyWith(
-            color: labelColor,
-            fontSize: 20,
-            fontWeight: FontWeight.w800,
+        Semantics(
+          header: true,
+          child: Text(
+            label,
+            style: Theme.of(context).textTheme.titleMedium?.copyWith(
+              color: labelColor,
+              fontSize: 20,
+              fontWeight: FontWeight.w800,
+            ),
           ),
         ),
         const SizedBox(height: 8),
-        DropdownButtonFormField<String>(
-          key: ValueKey('test-$label'),
-          initialValue: value,
-          decoration: const InputDecoration(
-            filled: true,
-            isDense: true,
-            contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 14),
+        Semantics(
+          label: '$label test result',
+          child: DropdownButtonFormField<String>(
+            key: ValueKey('test-$label'),
+            initialValue: value,
+            isExpanded: true,
+            itemHeight: null,
+            decoration: const InputDecoration(
+              filled: true,
+              isDense: true,
+              contentPadding: EdgeInsets.symmetric(
+                horizontal: 12,
+                vertical: 14,
+              ),
+            ),
+            items: _testChoices
+                .map(
+                  (option) => DropdownMenuItem(
+                    value: option,
+                    child: Text(option == 'No' ? 'Not tested' : option),
+                  ),
+                )
+                .toList(),
+            onChanged: _saving ? null : change,
           ),
-          items: _testChoices
-              .map(
-                (option) =>
-                    DropdownMenuItem(value: option, child: Text(option)),
-              )
-              .toList(),
-          onChanged: _saving ? null : change,
         ),
       ],
     ),
   );
 
   @override
-  Widget build(BuildContext context) => Scaffold(
+  Widget build(BuildContext context) => PopScope(
+    canPop: widget.session.locked || widget.session.hidden,
+    onPopInvokedWithResult: (didPop, _) {
+      if (!didPop && !_saving && widget.session.currentWorkerId != null) {
+        widget.onBack();
+      }
+    },
+    child: _scaffold(context),
+  );
+
+  Widget _scaffold(BuildContext context) => Scaffold(
     appBar: AppBar(
       title: Text(_editing ? 'Edit record' : 'Client entry'),
       leading: BackButton(onPressed: _saving ? null : widget.onBack),
-      actions: [
-        if (_editing)
-          IconButton(
-            key: const ValueKey('update-record-top'),
-            tooltip: 'Update record',
-            onPressed: _saving ? null : _save,
-            icon: const Icon(Icons.save_outlined),
-          ),
-      ],
     ),
     body: SafeArea(
       child: Form(
         key: _form,
-        child: ListView(
+        // Keep the existing validators mounted when Save is available anywhere.
+        child: SingleChildScrollView(
           key: const ValueKey('client-entry-scroll'),
+          controller: _scroll,
           padding: const EdgeInsets.all(20),
-          children: [
-            Text(
-              widget.hotspot['name'] as String,
-              style: Theme.of(context).textTheme.titleLarge,
-            ),
-            const SizedBox(height: 20),
-            Text('Client code', style: Theme.of(context).textTheme.titleMedium),
-            const SizedBox(height: 8),
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Expanded(
-                  child: TextFormField(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text(
+                widget.hotspot['name'] as String,
+                style: Theme.of(context).textTheme.titleLarge,
+              ),
+              const SizedBox(height: 20),
+              Semantics(
+                header: true,
+                child: Text(
+                  'Client code',
+                  style: Theme.of(context).textTheme.titleMedium,
+                ),
+              ),
+              const SizedBox(height: 4),
+              const Text(
+                'Required. MY is fixed; leading zeros are added to the number.',
+              ),
+              const SizedBox(height: 8),
+              LayoutBuilder(
+                builder: (context, constraints) {
+                  final year = TextFormField(
                     key: const ValueKey('client-year'),
                     controller: _clientYear,
                     enabled: !_saving && !_editing,
@@ -461,16 +542,11 @@ class _EncounterFormState extends State<EncounterForm> {
                         value == null || value.trim().length != 4
                         ? 'Use 4 digits.'
                         : null,
-                  ),
-                ),
-                const Padding(
-                  padding: EdgeInsets.fromLTRB(8, 18, 8, 0),
-                  child: Text('/MY/'),
-                ),
-                Expanded(
-                  child: TextFormField(
+                  );
+                  final number = TextFormField(
                     key: const ValueKey('client-number'),
                     controller: _clientNumber,
+                    focusNode: _clientNumberFocus,
                     enabled: !_saving && !_editing,
                     autofocus: !_editing,
                     keyboardType: TextInputType.number,
@@ -488,194 +564,273 @@ class _EncounterFormState extends State<EncounterForm> {
                     validator: (value) => value == null || value.trim().isEmpty
                         ? 'Enter the client number.'
                         : null,
+                  );
+                  if (constraints.maxWidth < 260 ||
+                      MediaQuery.textScalerOf(context).scale(14) > 21) {
+                    return Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        year,
+                        const SizedBox(height: 12),
+                        const Text('Fixed code: MY'),
+                        const SizedBox(height: 12),
+                        number,
+                      ],
+                    );
+                  }
+                  return Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Expanded(child: year),
+                      const Padding(
+                        padding: EdgeInsets.fromLTRB(8, 18, 8, 0),
+                        child: Text('/MY/'),
+                      ),
+                      Expanded(child: number),
+                    ],
+                  );
+                },
+              ),
+              const SizedBox(height: 8),
+              Text(
+                _editing
+                    ? 'Client code cannot be changed while editing.'
+                    : 'Saved as $_clientCode',
+                style: Theme.of(context).textTheme.bodySmall,
+              ),
+              const SizedBox(height: 20),
+              Semantics(
+                header: true,
+                child: Text(
+                  'Client type',
+                  style: Theme.of(context).textTheme.titleMedium,
+                ),
+              ),
+              const SizedBox(height: 4),
+              const Text(
+                'New: first visit this calendar year. Old: already visited this year.',
+              ),
+              const SizedBox(height: 8),
+              SegmentedButton<String>(
+                key: const ValueKey('client-kind'),
+                direction:
+                    MediaQuery.sizeOf(context).width < 360 ||
+                        MediaQuery.textScalerOf(context).scale(14) > 21
+                    ? Axis.vertical
+                    : Axis.horizontal,
+                segments: const [
+                  ButtonSegment(
+                    value: 'Unspecified',
+                    label: Text('Not specified'),
+                  ),
+                  ButtonSegment(value: 'New', label: Text('New')),
+                  ButtonSegment(value: 'Old', label: Text('Old')),
+                ],
+                selected: {_clientKind ?? 'Unspecified'},
+                showSelectedIcon: false,
+                onSelectionChanged: _saving
+                    ? null
+                    : (value) => _selectClientKind(
+                        value.single == 'Unspecified' ? null : value.single,
+                      ),
+              ),
+              if (_clientKind == 'New') ...[
+                const SizedBox(height: 8),
+                OutlinedButton.icon(
+                  key: const ValueKey('edit-new-client-details'),
+                  onPressed: _saving
+                      ? null
+                      : () async {
+                          if (await _showNewClientDialog() && mounted) {
+                            setState(() => _newClientDetailsComplete = true);
+                          }
+                        },
+                  icon: const Icon(Icons.edit_outlined),
+                  label: Text(
+                    _newClientDetailsComplete
+                        ? 'Edit new client details'
+                        : 'Enter new client details',
+                  ),
+                ),
+              ],
+              const SizedBox(height: 28),
+              Semantics(
+                header: true,
+                child: Text(
+                  'Testing',
+                  style: Theme.of(
+                    context,
+                  ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w700),
+                ),
+              ),
+              const SizedBox(height: 4),
+              const Text(
+                'Choose a result for each test. Not tested means no test was done.',
+              ),
+              const SizedBox(height: 8),
+              _testChoice(
+                'HIV',
+                _hiv,
+                (v) => setState(() => _hiv = v!),
+                Theme.of(context).colorScheme.errorContainer,
+                Theme.of(context).colorScheme.onErrorContainer,
+              ),
+              const SizedBox(height: 12),
+              _testChoice(
+                'HCV',
+                _hcv,
+                (v) => setState(() => _hcv = v!),
+                Theme.of(context).colorScheme.primaryContainer,
+                Theme.of(context).colorScheme.onPrimaryContainer,
+              ),
+              const SizedBox(height: 12),
+              _testChoice(
+                'HBV',
+                _hbv,
+                (v) => setState(() => _hbv = v!),
+                Theme.of(context).colorScheme.secondaryContainer,
+                Theme.of(context).colorScheme.onSecondaryContainer,
+              ),
+              const SizedBox(height: 12),
+              _testChoice(
+                'Syphilis',
+                _syphilis,
+                (v) => setState(() => _syphilis = v!),
+                Theme.of(context).colorScheme.tertiaryContainer,
+                Theme.of(context).colorScheme.onTertiaryContainer,
+              ),
+              const SizedBox(height: 28),
+              Semantics(
+                header: true,
+                child: Text(
+                  'Distribution',
+                  style: Theme.of(
+                    context,
+                  ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w700),
+                ),
+              ),
+              const SizedBox(height: 4),
+              const Text('Whole numbers only. Leave 0 when none were given.'),
+              const SizedBox(height: 8),
+              _quantityGroup(
+                context,
+                title: 'Needles and syringes',
+                color: Theme.of(context).colorScheme.primaryContainer,
+                fields: const {
+                  'dist_3cc': '3cc',
+                  'dist_1cc': '1cc',
+                  'dist_lds': 'LDS',
+                },
+              ),
+              const SizedBox(height: 12),
+              _quantityGroup(
+                context,
+                title: 'Other supplies',
+                color: Theme.of(context).colorScheme.tertiaryContainer,
+                fields: const {
+                  'dist_alcohol_swab': 'Swab',
+                  'dist_sterile_water': 'Water',
+                  'dist_condom': 'Condom',
+                },
+              ),
+              const SizedBox(height: 20),
+              Semantics(
+                header: true,
+                child: Text(
+                  'Recollection',
+                  style: Theme.of(
+                    context,
+                  ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w700),
+                ),
+              ),
+              const SizedBox(height: 4),
+              const Text(
+                'Whole numbers only. Leave 0 when none were returned.',
+              ),
+              const SizedBox(height: 8),
+              _quantityGroup(
+                context,
+                title: 'Returned needles and syringes',
+                color: Theme.of(context).colorScheme.secondaryContainer,
+                fields: const {
+                  'recollect_3cc': '3cc',
+                  'recollect_1cc': '1cc',
+                  'recollect_lds': 'LDS',
+                },
+              ),
+              const SizedBox(height: 20),
+              SwitchListTile(
+                key: const ValueKey('refer-dic'),
+                title: const Text('Refer to DIC'),
+                subtitle: Text(_referDic ? 'Yes' : 'No'),
+                value: _referDic,
+                onChanged: _saving
+                    ? null
+                    : (value) => setState(() => _referDic = value),
+              ),
+              const SizedBox(height: 12),
+              TextFormField(
+                key: const ValueKey('remark'),
+                controller: _remark,
+                enabled: !_saving,
+                minLines: 3,
+                maxLines: 5,
+                textCapitalization: TextCapitalization.sentences,
+                decoration: const InputDecoration(
+                  labelText: 'Remark (optional)',
+                  alignLabelWithHint: true,
+                ),
+                onChanged: (_) => widget.session.activity(),
+              ),
+            ],
+          ),
+        ),
+      ),
+    ),
+    bottomNavigationBar: Padding(
+      padding: EdgeInsets.only(bottom: MediaQuery.viewInsetsOf(context).bottom),
+      child: Material(
+        color: Theme.of(context).colorScheme.surfaceContainerLow,
+        elevation: 2,
+        child: SafeArea(
+          top: false,
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(20, 12, 20, 12),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                if (_message != null) ...[
+                  Semantics(
+                    liveRegion: true,
+                    child: Text(
+                      _message!,
+                      key: const ValueKey('encounter-message'),
+                      style: TextStyle(
+                        color: _message!.startsWith('Record saved')
+                            ? Theme.of(context).colorScheme.primary
+                            : Theme.of(context).colorScheme.error,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                ],
+                FilledButton.icon(
+                  key: const ValueKey('save-encounter'),
+                  onPressed: _saving ? null : _save,
+                  icon: const Icon(Icons.save_outlined),
+                  label: Padding(
+                    padding: const EdgeInsets.all(12),
+                    child: Text(
+                      _saving
+                          ? (_editing ? 'Updating...' : 'Saving...')
+                          : (_editing ? 'Update record' : 'Save record'),
+                    ),
                   ),
                 ),
               ],
             ),
-            const SizedBox(height: 8),
-            Text(
-              _editing
-                  ? 'Client code cannot be changed while editing.'
-                  : 'Saved as $_clientCode',
-              style: Theme.of(context).textTheme.bodySmall,
-            ),
-            const SizedBox(height: 20),
-            Text('Client type', style: Theme.of(context).textTheme.titleMedium),
-            const SizedBox(height: 8),
-            SegmentedButton<String>(
-              key: const ValueKey('client-kind'),
-              segments: const [
-                ButtonSegment(
-                  value: 'Unspecified',
-                  label: Text('Not specified'),
-                ),
-                ButtonSegment(value: 'New', label: Text('New')),
-                ButtonSegment(value: 'Old', label: Text('Old')),
-              ],
-              selected: {_clientKind ?? 'Unspecified'},
-              showSelectedIcon: false,
-              onSelectionChanged: _saving
-                  ? null
-                  : (value) => _selectClientKind(
-                      value.single == 'Unspecified' ? null : value.single,
-                    ),
-            ),
-            if (_clientKind == 'New') ...[
-              const SizedBox(height: 8),
-              OutlinedButton.icon(
-                key: const ValueKey('edit-new-client-details'),
-                onPressed: _saving
-                    ? null
-                    : () async {
-                        if (await _showNewClientDialog() && mounted) {
-                          setState(() => _newClientDetailsComplete = true);
-                        }
-                      },
-                icon: const Icon(Icons.edit_outlined),
-                label: Text(
-                  _newClientDetailsComplete
-                      ? 'Edit new client details'
-                      : 'Enter new client details',
-                ),
-              ),
-            ],
-            const SizedBox(height: 28),
-            Text(
-              'Testing',
-              style: Theme.of(
-                context,
-              ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w700),
-            ),
-            const SizedBox(height: 8),
-            _testChoice(
-              'HIV',
-              _hiv,
-              (v) => setState(() => _hiv = v!),
-              Theme.of(context).colorScheme.errorContainer,
-              Theme.of(context).colorScheme.onErrorContainer,
-            ),
-            const SizedBox(height: 12),
-            _testChoice(
-              'HCV',
-              _hcv,
-              (v) => setState(() => _hcv = v!),
-              Theme.of(context).colorScheme.primaryContainer,
-              Theme.of(context).colorScheme.onPrimaryContainer,
-            ),
-            const SizedBox(height: 12),
-            _testChoice(
-              'HBV',
-              _hbv,
-              (v) => setState(() => _hbv = v!),
-              Theme.of(context).colorScheme.secondaryContainer,
-              Theme.of(context).colorScheme.onSecondaryContainer,
-            ),
-            const SizedBox(height: 12),
-            _testChoice(
-              'Syphilis',
-              _syphilis,
-              (v) => setState(() => _syphilis = v!),
-              Theme.of(context).colorScheme.tertiaryContainer,
-              Theme.of(context).colorScheme.onTertiaryContainer,
-            ),
-            const SizedBox(height: 28),
-            Text(
-              'Distribution',
-              style: Theme.of(
-                context,
-              ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w700),
-            ),
-            const SizedBox(height: 8),
-            _quantityGroup(
-              context,
-              title: 'Needles and syringes',
-              color: Theme.of(context).colorScheme.primaryContainer,
-              fields: const {
-                'dist_3cc': '3cc',
-                'dist_1cc': '1cc',
-                'dist_lds': 'LDS',
-              },
-            ),
-            const SizedBox(height: 12),
-            _quantityGroup(
-              context,
-              title: 'Other supplies',
-              color: Theme.of(context).colorScheme.tertiaryContainer,
-              fields: const {
-                'dist_alcohol_swab': 'Swab',
-                'dist_sterile_water': 'Water',
-                'dist_condom': 'Condom',
-              },
-            ),
-            const SizedBox(height: 20),
-            Text(
-              'Recollection',
-              style: Theme.of(
-                context,
-              ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w700),
-            ),
-            const SizedBox(height: 8),
-            _quantityGroup(
-              context,
-              title: 'Returned needles and syringes',
-              color: Theme.of(context).colorScheme.secondaryContainer,
-              fields: const {
-                'recollect_3cc': '3cc',
-                'recollect_1cc': '1cc',
-                'recollect_lds': 'LDS',
-              },
-            ),
-            const SizedBox(height: 20),
-            SwitchListTile(
-              key: const ValueKey('refer-dic'),
-              title: const Text('Refer to DIC'),
-              subtitle: Text(_referDic ? 'Yes' : 'No'),
-              value: _referDic,
-              onChanged: _saving
-                  ? null
-                  : (value) => setState(() => _referDic = value),
-            ),
-            const SizedBox(height: 12),
-            TextFormField(
-              key: const ValueKey('remark'),
-              controller: _remark,
-              enabled: !_saving,
-              minLines: 3,
-              maxLines: 5,
-              textCapitalization: TextCapitalization.sentences,
-              decoration: const InputDecoration(
-                labelText: 'Remark (optional)',
-                alignLabelWithHint: true,
-              ),
-              onChanged: (_) => widget.session.activity(),
-            ),
-            if (_message != null) ...[
-              const SizedBox(height: 16),
-              Text(
-                _message!,
-                key: const ValueKey('encounter-message'),
-                style: TextStyle(
-                  color: _message!.startsWith('Record saved')
-                      ? Theme.of(context).colorScheme.primary
-                      : Theme.of(context).colorScheme.error,
-                ),
-              ),
-            ],
-            const SizedBox(height: 24),
-            FilledButton.icon(
-              key: const ValueKey('save-encounter'),
-              onPressed: _saving ? null : _save,
-              icon: const Icon(Icons.save_outlined),
-              label: Padding(
-                padding: const EdgeInsets.all(12),
-                child: Text(
-                  _saving
-                      ? (_editing ? 'Updating...' : 'Saving...')
-                      : (_editing ? 'Update record' : 'Save record'),
-                ),
-              ),
-            ),
-          ],
+          ),
         ),
       ),
     ),
@@ -697,13 +852,33 @@ class _EncounterFormState extends State<EncounterForm> {
       children: [
         Text(title, style: Theme.of(context).textTheme.labelLarge),
         const SizedBox(height: 8),
-        Row(
-          children: [
-            for (final entry in fields.entries) ...[
-              if (entry.key != fields.keys.first) const SizedBox(width: 8),
-              Expanded(child: _quantityField(entry.key, entry.value)),
-            ],
-          ],
+        LayoutBuilder(
+          builder: (context, constraints) {
+            final compact =
+                constraints.maxWidth >= 240 &&
+                MediaQuery.textScalerOf(context).scale(14) <= 21;
+            if (!compact) {
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  for (final entry in fields.entries) ...[
+                    if (entry.key != fields.keys.first)
+                      const SizedBox(height: 12),
+                    _quantityField(entry.key, entry.value),
+                  ],
+                ],
+              );
+            }
+            return Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                for (final entry in fields.entries) ...[
+                  if (entry.key != fields.keys.first) const SizedBox(width: 8),
+                  Expanded(child: _quantityField(entry.key, entry.value)),
+                ],
+              ],
+            );
+          },
         ),
       ],
     ),
@@ -714,23 +889,26 @@ class _EncounterFormState extends State<EncounterForm> {
     children: [
       Text(label, style: const TextStyle(fontSize: 12)),
       const SizedBox(height: 4),
-      TextFormField(
-        key: ValueKey('quantity-$field'),
-        controller: _quantities[field],
-        enabled: !_saving,
-        keyboardType: TextInputType.number,
-        decoration: const InputDecoration(
-          hintText: '0',
-          isDense: true,
-          contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 14),
+      Semantics(
+        label: _quantityLabels[field],
+        child: TextFormField(
+          key: ValueKey('quantity-$field'),
+          controller: _quantities[field],
+          enabled: !_saving,
+          keyboardType: TextInputType.number,
+          decoration: const InputDecoration(
+            hintText: '0',
+            isDense: true,
+            contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 14),
+          ),
+          validator: (value) {
+            final number = int.tryParse(value?.trim() ?? '');
+            return number != null && number >= 0
+                ? null
+                : 'Enter zero or a whole number.';
+          },
+          onChanged: (_) => widget.session.activity(),
         ),
-        validator: (value) {
-          final number = int.tryParse(value?.trim() ?? '');
-          return number != null && number >= 0
-              ? null
-              : 'Enter zero or a whole number.';
-        },
-        onChanged: (_) => widget.session.activity(),
       ),
     ],
   );

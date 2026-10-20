@@ -12,6 +12,34 @@ import org.json.JSONObject
 class MainActivity : FlutterActivity() {
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "org.ansvk.outreach/peer_certificate")
+            .setMethodCallHandler { call, result ->
+                if (call.method != "parse") {
+                    result.notImplemented()
+                } else {
+                    try {
+                        result.success(PeerCertificateMetadata.parse(call.argument<ByteArray>("der")))
+                    } catch (_: Exception) {
+                        result.error("invalid_certificate", "Certificate metadata unavailable", null)
+                    }
+                }
+            }
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "org.ansvk.outreach/app_version")
+            .setMethodCallHandler { call, result ->
+                if (call.method == "read") {
+                    result.success("${BuildConfig.VERSION_NAME}+${BuildConfig.VERSION_CODE}")
+                } else {
+                    result.notImplemented()
+                }
+            }
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "org.ansvk.outreach/app_version")
+            .setMethodCallHandler { call, result ->
+                if (call.method == "read") {
+                    result.success("${BuildConfig.VERSION_NAME}+${BuildConfig.VERSION_CODE}")
+                } else {
+                    result.notImplemented()
+                }
+            }
         externalCacheDir?.let { root ->
             for (name in listOf("reviewed-test-batch.json", "reviewed-test-batch.metadata.json", "reviewed-test-batch.sha256")) {
                 File(root, name).delete()

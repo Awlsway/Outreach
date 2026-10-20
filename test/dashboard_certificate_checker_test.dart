@@ -1,8 +1,11 @@
 import 'package:ansvk_outreach/sync/certificate_fingerprint_store.dart';
 import 'package:ansvk_outreach/sync/dashboard_certificate_checker.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'peer_certificate_test_support.dart';
 
 void main() {
+  setUp(installPeerCertificateMock);
+  tearDown(clearPeerCertificateMock);
   test('matches a dashboard certificate fingerprint', () async {
     final expected = await DashboardCertificateChecker.sha256Hex([1, 2, 3]);
     final checker = DashboardCertificateChecker(
@@ -19,19 +22,18 @@ void main() {
     );
 
     expect(result.status, DashboardCertificateCheckStatus.match);
-    expect(
-      result.fingerprintHint,
-      CertificateFingerprintStore.hint(expected),
-    );
+    expect(result.fingerprintHint, CertificateFingerprintStore.hint(expected));
   });
 
   test('reports mismatch without accepting the dashboard', () async {
     final expected = await DashboardCertificateChecker.sha256Hex([1, 2, 3]);
     final actual = await DashboardCertificateChecker.sha256Hex([9, 9, 9]);
-    final checker = DashboardCertificateChecker(probe: (_, _) async => [9, 9, 9]);
+    final checker = DashboardCertificateChecker(
+      probe: (_, _) async => [9, 9, 9],
+    );
 
     final result = await checker.check(
-      dashboardUrl: 'https://dashboard.local/api/v1',
+      dashboardUrl: 'https://192.168.1.50/api/v1',
       expectedFingerprint: expected,
     );
 
@@ -89,4 +91,3 @@ void main() {
     expect(result.status, DashboardCertificateCheckStatus.unavailable);
   });
 }
-

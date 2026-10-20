@@ -8,8 +8,12 @@ import 'secure_sync_transport.dart';
 import 'sync_batch_builder.dart';
 import 'sync_status_response.dart';
 import 'reviewed_sync_plan.dart';
+import 'sync_run_control.dart';
+import 'initial_certificate_trust.dart';
+import 'lifecycle_gate.dart';
+import 'certificate_renewal_qr.dart';
 
-/// Secure integration seam, not yet connected to worker UI.
+/// Secure foreground sync shared by the ordinary UI and reviewed test path.
 class ConfiguredManualSync {
   ConfiguredManualSync({
     required this.repository,
@@ -18,6 +22,8 @@ class ConfiguredManualSync {
     required this.builder,
     this.connector,
     this.maxBatchesPerRun,
+    this.retryWait,
+    this.retryRandom,
   });
   final OutreachRepository repository;
   final CertificateFingerprintStore fingerprintStore;
@@ -25,9 +31,44 @@ class ConfiguredManualSync {
   final SyncBatchBuilder builder;
   final SyncHttpsConnector? connector;
   final int? maxBatchesPerRun;
+  final Future<void> Function(Duration)? retryWait;
+  final double Function()? retryRandom;
   bool _running = false;
 
-  Future<ManualSyncResult> run({ReviewedSyncPlan? reviewedPlan}) async {
+  InitialCertificateTrust get _trust => InitialCertificateTrust(
+    repository: repository,
+    legacyPins: fingerprintStore,
+    credentials: credentialStore,
+    connector: connector,
+  );
+  Future<ManualSyncResult> run({
+    ReviewedSyncPlan? reviewedPlan,
+    SyncRunControl? control,
+  }) async {
+    final token = repository.sessionToken;
+    try {
+      return await LifecycleGate.run(() async {
+        await _trust.ensureWhileHeld(control: control);
+        if (repository.sessionToken != token) {
+          throw StateError('Session changed');
+        }
+        return _run(reviewedPlan: reviewedPlan, control: control);
+      });
+    } catch (error) {
+      return ManualSyncResult(
+        ManualSyncOutcome.stopped,
+        0,
+        message: error is CertificateRenewalQrException
+            ? error.message
+            : 'Dashboard trust setup or confirmation could not finish. Records remain pending. Check dashboard access and retry Sync.',
+      );
+    }
+  }
+
+  Future<ManualSyncResult> _run({
+    ReviewedSyncPlan? reviewedPlan,
+    SyncRunControl? control,
+  }) async {
     if (_running) throw StateError('Sync already running');
     _running = true;
     try {
@@ -35,24 +76,28 @@ class ConfiguredManualSync {
           (await repository.currentWorkerProfile())['worker_id'] as String;
       final identity = await repository.appIdentity();
       final config = await repository.dashboardPairingPreparation();
-      final pin = await fingerprintStore.read();
+      final pin = await _trust.confirmedPin();
+      final trustStamp = await _trust.recordStamp();
       final credential = await credentialStore.read();
       if (config['status'] != 'Paired' ||
-          pin == null ||
           credential == null ||
           config['dashboard_id'] is! String ||
           config['paired_at'] is! String) {
         throw StateError('Dashboard pairing is unavailable');
       }
       final configSnapshot = jsonEncode(config);
+      final token = repository.sessionToken;
       Future<void> guard() async {
+        control?.check();
         await reviewedPlan?.validate(repository);
         if ((await repository.currentWorkerProfile())['worker_id'] != worker ||
             jsonEncode(await repository.appIdentity()) !=
                 jsonEncode(identity) ||
             jsonEncode(await repository.dashboardPairingPreparation()) !=
                 configSnapshot ||
-            await fingerprintStore.read() != pin ||
+            await _trust.confirmedPin() != pin ||
+            await _trust.recordStamp() != trustStamp ||
+            repository.sessionToken != token ||
             await credentialStore.read() != credential) {
           throw StateError('Sync context changed');
         }
@@ -67,16 +112,33 @@ class ConfiguredManualSync {
         credentialStore: credentialStore,
         connector: connector,
         beforeSend: guard,
+        control: control,
       );
-      return await ManualSyncRunner(
+      final retrying = control == null
+          ? null
+          : RetryingSyncTransport(
+              transport: transport,
+              control: control,
+              guard: guard,
+              wait: retryWait,
+              random: retryRandom,
+            );
+      final result = await ManualSyncRunner(
         repository: repository,
         builder: builder,
-        transport: transport,
+        transport: retrying ?? transport,
+        control: control,
+        dashboardId: config['dashboard_id'] as String,
         maxBatchesPerRun: reviewedPlan == null ? maxBatchesPerRun : 1,
         preparedBatches: reviewedPlan?.batches,
         validateContext: guard,
         checkDashboardStatus: () async {
-          final reply = await transport.checkStatus();
+          final reply = retrying == null
+              ? await transport.checkStatus()
+              : await retrying.request(
+                  transport.checkStatus,
+                  'Checking dashboard access',
+                );
           await guard();
           SyncStatusResponse.parse(
             reply.response,
@@ -86,8 +148,44 @@ class ConfiguredManualSync {
           );
         },
       ).run();
-    } catch (_) {
-      return const ManualSyncResult(ManualSyncOutcome.stopped, 0);
+      if (reviewedPlan == null &&
+          (result.outcome == ManualSyncOutcome.uploaded ||
+              result.outcome == ManualSyncOutcome.emptyQueue)) {
+        try {
+          await guard();
+          final cleanup = await repository.cleanupAcknowledgedEncounters(
+            expectedDashboardId: config['dashboard_id'] as String,
+            expectedProjectId: identity['project_id'] as String,
+            expectedDeviceId: identity['device_id'] as String,
+            mayContinue: () =>
+                control?.stopped != true &&
+                repository.currentWorkerId() == worker,
+          );
+          return ManualSyncResult(
+            result.outcome,
+            result.markedOperations,
+            cleanup: cleanup,
+          );
+        } catch (_) {
+          // Cleanup failure must never turn accepted uploads into a failed send.
+          return ManualSyncResult(
+            result.outcome,
+            result.markedOperations,
+            cleanupFailed: true,
+          );
+        }
+      }
+      return result;
+    } catch (error) {
+      return ManualSyncResult(
+        ManualSyncOutcome.stopped,
+        0,
+        message: error is SyncStopped
+            ? 'Sync stopped.'
+            : error is SyncRequestFailure
+            ? error.message
+            : 'Dashboard pairing or access could not be verified. Ask the data assistant to check this phone.',
+      );
     } finally {
       _running = false;
     }

@@ -1,20 +1,21 @@
 import 'dart:async';
 import 'dart:io';
 
-import 'package:cryptography/cryptography.dart';
+import 'peer_certificate_verifier.dart';
 
 import 'certificate_fingerprint_store.dart';
 
-typedef CertificateDerProbe = Future<List<int>> Function(
-  Uri uri,
-  Duration timeout,
-);
+typedef CertificateDerProbe =
+    Future<List<int>> Function(Uri uri, Duration timeout);
 
 class DashboardCertificateChecker {
   DashboardCertificateChecker({
     CertificateDerProbe? probe,
     this.timeout = const Duration(seconds: 10),
-  }) : _probe = probe ?? _secureSocketProbe;
+    PeerCertificateVerifier? certificateVerifier,
+  }) : _probe = probe ?? _secureSocketProbe,
+       certificateVerifier = certificateVerifier ?? PeerCertificateVerifier();
+  final PeerCertificateVerifier certificateVerifier;
 
   final CertificateDerProbe _probe;
   final Duration timeout;
@@ -24,7 +25,9 @@ class DashboardCertificateChecker {
     required String expectedFingerprint,
   }) async {
     final uri = Uri.tryParse(dashboardUrl.trim());
-    if (uri == null || uri.scheme != 'https' || uri.host.isEmpty) {
+    if (uri == null ||
+        uri.scheme != 'https' ||
+        !PeerCertificateVerifier.isIpv4(uri.host)) {
       return const DashboardCertificateCheckResult.invalidAddress();
     }
 
@@ -37,6 +40,11 @@ class DashboardCertificateChecker {
       final certificateDer = await _probe(uri, timeout);
       final actual = await sha256Hex(certificateDer);
       if (actual == expected) {
+        await certificateVerifier.verify(
+          endpoint: uri,
+          der: certificateDer,
+          fingerprint: expected,
+        );
         return DashboardCertificateCheckResult.match(
           fingerprintHint: CertificateFingerprintStore.hint(actual),
         );
@@ -45,24 +53,22 @@ class DashboardCertificateChecker {
         expectedHint: CertificateFingerprintStore.hint(expected),
         actualHint: CertificateFingerprintStore.hint(actual),
       );
+    } on CertificateVerificationFailure {
+      return const DashboardCertificateCheckResult._(
+        status: DashboardCertificateCheckStatus.unavailable,
+        message:
+            'Certificate dates or address could not be verified. Ask the data assistant for help.',
+      );
     } catch (_) {
       return const DashboardCertificateCheckResult.unavailable();
     }
   }
 
   static Future<String> sha256Hex(List<int> bytes) async {
-    final digest = await Sha256().hash(bytes);
-    final buffer = StringBuffer();
-    for (final byte in digest.bytes) {
-      buffer.write(byte.toRadixString(16).padLeft(2, '0'));
-    }
-    return buffer.toString().toUpperCase();
+    return PeerCertificateVerifier.sha256Hex(bytes);
   }
 
-  static Future<List<int>> _secureSocketProbe(
-    Uri uri,
-    Duration timeout,
-  ) async {
+  static Future<List<int>> _secureSocketProbe(Uri uri, Duration timeout) async {
     final socket = await SecureSocket.connect(
       uri.host,
       uri.hasPort ? uri.port : 443,

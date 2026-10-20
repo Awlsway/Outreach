@@ -35,7 +35,7 @@ For this project phase, client privacy wins when these two goals conflict. The a
 - Passwords are not stored as plain text.
 - Password verification uses PBKDF2-HMAC-SHA256 with random salt.
 - Workers can only view, edit and delete their own local records through the app.
-- The app locks after one minute of inactivity.
+- The app locks after four minutes of inactivity (increased from the original one-minute setting for field use and testing).
 - The app hides content when backgrounded or locked.
 - Android screenshots/recent-app snapshots are blocked with secure-window protection.
 - Android backup is disabled in the manifest.
