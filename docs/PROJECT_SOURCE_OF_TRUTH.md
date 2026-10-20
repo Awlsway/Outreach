@@ -1,11 +1,15 @@
 # Outreach APK source of truth
 
-Updated: 2026-10-01. Owner: Outreach APK PM. Start here when continuing the Android project in a new chat. This index explains authority and reading order; it does not itself approve a production rollout.
+Updated: 2026-10-20. Owner: Outreach APK PM. Start here when continuing the Android project in a new chat. This index explains authority and reading order; it does not itself approve a production rollout.
 
 ## Read first
 
 1. [APK current state](APK_CURRENT_STATE.md) for checked architecture, worker workflow, decisions and source/artifact versions.
 2. [APK verification and release status](APK_VERIFICATION_AND_RELEASE_STATUS.md) for dated evidence, known limits, Git state and next gates.
+   The newer [UI refresh](49_ui_ux_refresh.md) records the approved Today first
+   design, completed chunks 2–7 on `codex/ui-ux-refresh`, focused checks, phone
+   acceptance and the signed 0.9.12+27 UI candidate. The owner authorized a
+   checkpoint commit/push on this branch; use Git for its resulting identity.
 3. The relevant detailed APK source, contract and test document below before changing that area.
 4. For dashboard/server or office deployment work, the separate `D:/LAN/docs/PROJECT_SOURCE_OF_TRUTH.md`, `LAN_CURRENT_STATE.md` and `LAN_VERIFICATION_AND_RELEASE_STATUS.md`.
 

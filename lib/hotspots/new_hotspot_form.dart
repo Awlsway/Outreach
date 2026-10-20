@@ -15,7 +15,7 @@ class NewHotspotForm extends StatefulWidget {
   final OutreachRepository repository;
   final SessionController session;
   final HotspotLocationService location;
-  final VoidCallback onSaved;
+  final ValueChanged<String> onSaved;
   final VoidCallback onBack;
 
   @override
@@ -77,13 +77,13 @@ class _NewHotspotFormState extends State<NewHotspotForm> {
       _error = null;
     });
     try {
-      await widget.repository.createHotspot(
+      final id = await widget.repository.createHotspot(
         name: _name.text,
         peers: _peers.map((p) => p.text).toList(),
         latitude: _capture?.latitude,
         longitude: _capture?.longitude,
       );
-      if (mounted) widget.onSaved();
+      if (mounted) widget.onSaved(id);
     } catch (_) {
       if (mounted) {
         setState(() {
@@ -96,7 +96,17 @@ class _NewHotspotFormState extends State<NewHotspotForm> {
   }
 
   @override
-  Widget build(BuildContext context) => Scaffold(
+  Widget build(BuildContext context) => PopScope(
+    canPop: widget.session.locked || widget.session.hidden,
+    onPopInvokedWithResult: (didPop, _) {
+      if (!didPop && !_saving && widget.session.currentWorkerId != null) {
+        widget.onBack();
+      }
+    },
+    child: _scaffold(context),
+  );
+
+  Widget _scaffold(BuildContext context) => Scaffold(
     appBar: AppBar(
       title: const Text('New hotspot'),
       leading: BackButton(onPressed: _saving ? null : widget.onBack),
@@ -116,17 +126,25 @@ class _NewHotspotFormState extends State<NewHotspotForm> {
                   enabled: !_saving,
                   textCapitalization: TextCapitalization.words,
                   textInputAction: TextInputAction.next,
-                  decoration: const InputDecoration(labelText: 'Hotspot name'),
+                  decoration: const InputDecoration(
+                    labelText: 'Hotspot name',
+                    helperText: 'Required',
+                  ),
                   onChanged: (_) => widget.session.activity(),
                   validator: (v) => v == null || v.trim().isEmpty
                       ? 'Enter the hotspot name.'
                       : null,
                 ),
                 const SizedBox(height: 24),
-                Text(
-                  'Assigned peers',
-                  style: Theme.of(context).textTheme.titleMedium,
+                Semantics(
+                  header: true,
+                  child: Text(
+                    'Assigned peers',
+                    style: Theme.of(context).textTheme.titleMedium,
+                  ),
                 ),
+                const SizedBox(height: 4),
+                const Text('Optional. Enter one peer name per field.'),
                 const SizedBox(height: 8),
                 for (var i = 0; i < _peers.length; i++)
                   Padding(
@@ -180,13 +198,16 @@ class _NewHotspotFormState extends State<NewHotspotForm> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(
-                          _locating
-                              ? 'Getting GPS location…'
-                              : _capture?.available == true
-                              ? 'Location captured'
-                              : 'GPS unavailable',
-                          style: Theme.of(context).textTheme.titleMedium,
+                        Semantics(
+                          liveRegion: true,
+                          child: Text(
+                            _locating
+                                ? 'Getting GPS location…'
+                                : _capture?.available == true
+                                ? 'Location captured'
+                                : 'GPS unavailable',
+                            style: Theme.of(context).textTheme.titleMedium,
+                          ),
                         ),
                         const SizedBox(height: 8),
                         if (_locating) ...[
@@ -237,10 +258,13 @@ class _NewHotspotFormState extends State<NewHotspotForm> {
                 if (_error != null)
                   Padding(
                     padding: const EdgeInsets.symmetric(vertical: 12),
-                    child: Text(
-                      _error!,
-                      style: TextStyle(
-                        color: Theme.of(context).colorScheme.error,
+                    child: Semantics(
+                      liveRegion: true,
+                      child: Text(
+                        _error!,
+                        style: TextStyle(
+                          color: Theme.of(context).colorScheme.error,
+                        ),
                       ),
                     ),
                   ),

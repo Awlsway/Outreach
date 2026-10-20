@@ -365,6 +365,18 @@ Future<void> waitRenewalUi(
 
 Future<void> tapRenewalUi(WidgetTester tester, String key) async {
   final finder = find.byKey(ValueKey(key));
+  if (find.text('Sync status').evaluate().isNotEmpty) {
+    await tester.scrollUntilVisible(
+      finder,
+      160,
+      scrollable: find
+          .descendant(
+            of: find.byType(ListView).last,
+            matching: find.byType(Scrollable),
+          )
+          .first,
+    );
+  }
   await tester.ensureVisible(finder);
   await tester.tap(finder);
   await tester.pump();
@@ -377,10 +389,8 @@ Future<void> openRenewalUi(WidgetTester tester, RenewalUiHarness h) async {
   await waitRenewalUi(
     tester,
     h,
-    () => find
-        .byKey(const ValueKey('open-certificate-renewal'))
-        .evaluate()
-        .isNotEmpty,
+    () =>
+        find.byKey(const ValueKey('sync-pairing-status')).evaluate().isNotEmpty,
   );
   await tapRenewalUi(tester, 'open-certificate-renewal');
   await waitRenewalUi(

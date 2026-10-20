@@ -66,7 +66,7 @@ void main() {
     FocusManager.instance.primaryFocus?.unfocus();
     await tester.pump();
     if (finder.evaluate().isEmpty &&
-        find.text('Sync status').evaluate().isNotEmpty) {
+        find.byType(ListView).evaluate().isNotEmpty) {
       await tester.scrollUntilVisible(
         finder,
         200,
@@ -75,6 +75,8 @@ void main() {
     }
     await tester.ensureVisible(finder);
     await tester.pump(const Duration(milliseconds: 300));
+    await tester.ensureVisible(finder);
+    await tester.pump();
     await tester.tap(finder);
     await flush(tester);
     await tester.pump(const Duration(milliseconds: 300));
@@ -113,6 +115,7 @@ void main() {
       await tester.enterText(find.byKey(const ValueKey('peer-1')), 'Peer Two');
       await tap(tester, find.byKey(const ValueKey('save-hotspot')));
       expect(find.text('Hotspot A'), findsOneWidget);
+      await tap(tester, find.byKey(const ValueKey('return-to-hotspots')));
       expect(find.text('Peer One, Peer Two'), findsOneWidget);
       gps.serviceEnabled = false;
       await tap(tester, find.byKey(const ValueKey('new-hotspot')));
@@ -122,6 +125,7 @@ void main() {
         'Hotspot B',
       );
       await tap(tester, find.byKey(const ValueKey('save-hotspot')));
+      await tap(tester, find.byKey(const ValueKey('return-to-hotspots')));
       expect(find.text('Hotspot A'), findsOneWidget);
       expect(find.text('Hotspot B'), findsOneWidget);
       await tester.enterText(
@@ -265,6 +269,7 @@ void main() {
       isNull,
     );
     final beforePreparation = await tester.runAsync(repo.pendingOperations);
+    await tap(tester, find.byKey(const ValueKey('sync-technical-toggle')));
     await tap(tester, find.byKey(const ValueKey('prepare-sync-batches')));
     await flush(tester);
     expect(
@@ -297,9 +302,12 @@ void main() {
     await tap(tester, find.byKey(const ValueKey('refresh-sync-status')));
     expect(find.text('Local preparation'), findsNothing);
     expect(find.byKey(const ValueKey('review-first-sync-batch')), findsNothing);
+    if (find.text('Address').evaluate().isEmpty) {
+      await tap(tester, find.byKey(const ValueKey('sync-technical-toggle')));
+    }
     await tester.scrollUntilVisible(
       find.text('Not configured'),
-      -100,
+      100,
       scrollable: visibleListScrollable(),
     );
     expect(find.text('Not configured'), findsOneWidget);
@@ -346,7 +354,7 @@ void main() {
     expect(find.text('ANSVK Outreach'), findsWidgets);
     await tester.scrollUntilVisible(
       find.text('View pending changes'),
-      200,
+      -200,
       scrollable: visibleListScrollable(),
     );
     expect(find.text('View pending changes'), findsOneWidget);
@@ -384,6 +392,7 @@ void main() {
       await tester.runAsync(() => db.connection.delete('sync_outbox'));
       await tester.pumpWidget(OutreachApp(session: session, hasAccounts: true));
       await tap(tester, find.byKey(const ValueKey('open-sync-status')));
+      await tap(tester, find.byKey(const ValueKey('sync-technical-toggle')));
       await tap(tester, find.byKey(const ValueKey('prepare-sync-batches')));
       expect(
         find.text('No pending changes to prepare. No data was sent.'),
@@ -402,6 +411,7 @@ void main() {
     );
     await tester.pumpWidget(OutreachApp(session: session, hasAccounts: true));
     await tap(tester, find.byKey(const ValueKey('open-sync-status')));
+    await tap(tester, find.byKey(const ValueKey('sync-technical-toggle')));
     await tap(tester, find.byKey(const ValueKey('prepare-sync-batches')));
     await flush(tester);
     expect(
@@ -431,6 +441,7 @@ void main() {
       final before = await tester.runAsync(repo.pendingOperations);
       await tester.pumpWidget(OutreachApp(session: session, hasAccounts: true));
       await tap(tester, find.byKey(const ValueKey('open-sync-status')));
+      await tap(tester, find.byKey(const ValueKey('sync-technical-toggle')));
       await tap(tester, find.byKey(const ValueKey('prepare-sync-batches')));
       expect(
         find.text(
@@ -562,10 +573,9 @@ void main() {
     );
     await tap(tester, find.byKey(const ValueKey('open-today-records')));
     await tap(tester, find.text('2026/MY/0088'));
-    await tester.scrollUntilVisible(
-      find.byKey(const ValueKey('edit-record')),
-      200,
-      scrollable: find.byType(Scrollable).last,
+    expect(
+      find.byKey(const ValueKey('edit-record')).hitTestable(),
+      findsOneWidget,
     );
     await tap(tester, find.byKey(const ValueKey('edit-record')));
     expect(find.text('Edit record'), findsOneWidget);
@@ -602,7 +612,7 @@ void main() {
       scrollable: editScroll,
     );
     await tester.enterText(find.byKey(const ValueKey('remark')), 'After edit');
-    await tap(tester, find.byKey(const ValueKey('update-record-top')));
+    await tap(tester, find.byKey(const ValueKey('save-encounter')));
     expect(find.text("Today's records"), findsOneWidget);
     expect(find.textContaining('Edit Site - Old - Tested HIV'), findsOneWidget);
     final record = await tester.runAsync(() => repo.encounter(id!));

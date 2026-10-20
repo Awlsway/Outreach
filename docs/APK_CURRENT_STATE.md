@@ -1,6 +1,27 @@
 # Outreach APK current state
 
-Updated: 2026-10-01. Owner: Outreach APK PM. See [verification and release status](APK_VERIFICATION_AND_RELEASE_STATUS.md) before calling a feature or build accepted. The renewal source checkpoint is based on `fed2b46cf8e42b8dd5c251033d29252a60d259ff` on `codex/synthetic-sync-uat-v1`; check `git log -1` for its resulting commit.
+Updated: 2026-10-20. Owner: Outreach APK PM. See [verification and release status](APK_VERIFICATION_AND_RELEASE_STATUS.md) before calling a feature or build accepted. The renewal source checkpoint is based on `fed2b46cf8e42b8dd5c251033d29252a60d259ff` on `codex/synthetic-sync-uat-v1`; check `git log -1` for its resulting commit.
+
+UI follow-up, 2026-10-20: branch `codex/ui-ux-refresh` starts from the pushed
+renewal checkpoint `6d36c31`. The owner chose Today first. Chunk 2 adds the
+local-summary Home and Today/Hotspots/Records/Sync navigation in source. Chunk 3
+adds hotspot client-entry shortcuts, saved confirmation and consistent Back; see
+[UI refresh status](49_ui_ux_refresh.md). The old preserved signed APK predates
+this UI work; the new 0.9.12+27 candidate includes it. Business rules, schema and dashboard services are unchanged.
+Chunk 4 now adds fixed keyboard-aware Save/Update, visible Edit and successful
+next-client scroll/focus reset using the existing data defaults and validators.
+Chunk 5 simplifies Sync presentation: pending count/last success and ordinary
+Sync come first; technical tools/details are collapsed. QR, renewal, Stop and
+synthetic-only actions keep their existing handlers and guards.
+Chunk 6 adds clearer form help, display-only Not tested wording, screen-reader
+names/headings/live feedback and layouts that adapt to large text. Stored values,
+validators, defaults and existing action handlers remain unchanged.
+Chunk 7 is complete for the UI scope: local synthetic phone checks passed and
+the owner accepted the UI. Signed 0.9.12+27 was built, verified, preserved and
+installed over the regular app without clearing data; its sign-in launch passed.
+The old named signed APK is unchanged. On 2026-10-20 the owner authorized
+checkpointing the latest source/docs to GitHub on this branch, without merging
+to main. Use `git log -1` and branch tracking for the resulting checkpoint.
 
 ## Purpose and worker flow
 
@@ -22,7 +43,15 @@ Client code is manually entered in `YYYY/MY/0000` style and identifies a person 
 
 Audit operations and the outbox retain stable operation IDs and revisions for idempotent upload. The phone sends only the signed-in worker's changes to the paired office HTTPS device API; it does not download coworkers' records. The dashboard keeps full history. After a successful destination-bound acknowledgement, local client/encounter information older than seven days is eligible for cleanup; unconfirmed changes are held, and hotspots remain. `last_successful_sync_at` is distinct from pending count.
 
-Package `org.ansvk.ansvk_outreach`; current source version `0.9.11+26` in `pubspec.yaml`. Sync payload schema is **6** (`lib/sync/sync_protocol.dart`); protocol/API is v1. These are independent of local SQLite schema 9 and LAN migration 8. The signed candidate is named `build/renewal-test/ANSVK-Outreach-0.9.11-26-renewal-test.apk`; exact checksum and provenance are in the status document. The candidate was built before this source checkpoint from its dirty working tree. The older base commit alone does not reproduce it; a byte-for-byte rebuild from the new checkpoint has not been performed.
+Package `org.ansvk.ansvk_outreach`; current source and installed signed version
+**0.9.12+27** in `pubspec.yaml`. Sync payload schema remains **6**
+(`lib/sync/sync_protocol.dart`); protocol/API v1 and local SQLite schema 9 are
+unchanged. The signed UI candidate is
+`build/ui-refresh-uat/20261020/ANSVK-Outreach-0.9.12-27-ui-refresh.apk`, SHA-256
+`9BA9D543C6366987E39D054904293E98DFF02AB7761E7D3E176D8279BF6A2018`.
+It was built from the current uncommitted UI working tree; exact source-snapshot,
+signature, package and phone evidence are in [UI refresh status](49_ui_ux_refresh.md).
+The older named 0.9.11+26 candidate remains preserved under `build/renewal-test/`.
 
 ## Connection and trust decisions
 

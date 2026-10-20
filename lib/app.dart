@@ -61,6 +61,8 @@ class _OutreachAppState extends State<OutreachApp> with WidgetsBindingObserver {
       useMaterial3: true,
       inputDecorationTheme: const InputDecorationTheme(
         border: OutlineInputBorder(),
+        helperMaxLines: 4,
+        errorMaxLines: 6,
       ),
     ),
     home: Listener(
@@ -214,10 +216,13 @@ class _AuthFormState extends State<AuthForm> {
                       size: 52,
                     ),
                     const SizedBox(height: 20),
-                    Text(
-                      title,
-                      style: Theme.of(context).textTheme.headlineSmall,
-                      textAlign: TextAlign.center,
+                    Semantics(
+                      header: true,
+                      child: Text(
+                        title,
+                        style: Theme.of(context).textTheme.headlineSmall,
+                        textAlign: TextAlign.center,
+                      ),
                     ),
                     const SizedBox(height: 8),
                     Text(
@@ -338,12 +343,15 @@ class _AuthFormState extends State<AuthForm> {
                     ],
                     if (_error != null) ...[
                       const SizedBox(height: 16),
-                      Text(
-                        _error!,
-                        style: TextStyle(
-                          color: Theme.of(context).colorScheme.error,
+                      Semantics(
+                        liveRegion: true,
+                        child: Text(
+                          _error!,
+                          style: TextStyle(
+                            color: Theme.of(context).colorScheme.error,
+                          ),
+                          semanticsLabel: _error,
                         ),
-                        semanticsLabel: _error,
                       ),
                     ],
                     const SizedBox(height: 24),

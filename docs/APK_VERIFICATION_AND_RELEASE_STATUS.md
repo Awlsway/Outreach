@@ -1,8 +1,42 @@
 # Outreach APK verification and release status
 
-Updated: 2026-10-01. Owner: Outreach APK PM. This document separates completed checks from remaining production gates. It records existing evidence; no tests, build, install, service operation or commit was performed for this documentation handoff.
+Updated: 2026-10-20. Owner: Outreach APK PM. This document distinguishes current
+UI acceptance/artifacts from the historical renewal checkpoint and remaining
+office deployment gates.
 
-## Git and signed artifact
+## Current UI candidate — 20 October
+
+The Today-first UI refresh is on `codex/ui-ux-refresh`, based on pushed
+`6d36c31`. The owner authorized a checkpoint commit/push on 2026-10-20,
+without merging to main. Use `git log -1` and branch tracking for the resulting
+checkpoint. [UI refresh evidence](49_ui_ux_refresh.md)
+records all seven chunks: focused checks at each stage, direct local phone
+checks and the owner's **Passed — I accept the UI** reply. The last form chunk
+passed 34 distinct checks across five suites; two version-reader checks passed
+with 0.9.12+27 included. No fresh full-suite run is claimed.
+
+- Signed candidate: `build/ui-refresh-uat/20261020/ANSVK-Outreach-0.9.12-27-ui-refresh.apk`.
+- Package/version: `org.ansvk.ansvk_outreach`, **0.9.12+27**, 84,341,490 bytes.
+- SHA-256: `9BA9D543C6366987E39D054904293E98DFF02AB7761E7D3E176D8279BF6A2018`.
+- APK Signature Scheme v2 verified; release signer matches the previous release.
+  Non-debuggable, Android backup disabled, synthetic review flags false, native
+  screen-capture protection retained.
+- Installed over signed build 26 with `adb install -r`, retaining first-install
+  date `2026-10-01 00:27:20`; version 0.9.12/build 27 and existing-account Sign in
+  launch confirmed. No app-data clear/uninstall occurred.
+- Full local UI journey and owner acceptance were on the separate debug Test
+  app; signed verification covers package/update/launch. No new dashboard
+  pairing/upload or signed Sync UAT occurred. Database/auth/sync/Android source
+  and dependencies are unchanged; only UI and package version metadata changed.
+- This candidate comes from the current working tree, with source hashes recorded
+  in the UI evidence folder. A commit-based byte-for-byte rebuild is not claimed.
+  The older named signed 0.9.11+26 APK remains preserved with its original hash;
+  generic `app-release.apk` now contains 0.9.12+27.
+
+The sections below retain the **1 October renewal baseline**. Their older
+artifact/commit statements do not describe the new UI candidate above.
+
+## Git and signed artifact — 1 October baseline
 
 - Remote: `https://github.com/Awlsway/Outreach.git`; checkpoint branch `codex/synthetic-sync-uat-v1`, based on `fed2b46cf8e42b8dd5c251033d29252a60d259ff` (`Enable ordinary sync and verified seven-day phone retention`). Check `git log -1` for the renewal source-checkpoint commit. No merge to `main` or push is claimed here.
 - At the start of this checkpoint, the approved certificate validation, initial trust and renewal source/tests/docs were modified/untracked beyond that base commit. They were reviewed for this checkpoint. Unrelated untracked `android/Kimi-Test.code-workspace` is intentionally excluded. Check `git status` for any later work; the base commit alone does **not** represent the signed candidate.
@@ -24,7 +58,13 @@ Older renewal documents say phone installation/UAT were pending because they wer
 
 ## Remaining acceptance and next actions
 
-1. **Maintain the APK source checkpoint:** the reviewed source, fixtures and handoff documents are committed locally after the checks above; check `git log`/`git status` for its exact identity and any later changes. The candidate was built from the matching pre-checkpoint development tree according to [package provenance](48_certificate_renewal_signed_candidate.md), but a byte-for-byte rebuild from the commit has **not** been verified. Push or merge only with owner authorization; keep unrelated files out.
+1. **Maintain the UI checkpoint:** the owner authorized committing/pushing the
+   accepted source, tests, version metadata and documents to the current
+   `codex/ui-ux-refresh` branch on 2026-10-20. No merge to main is authorized.
+   The unrelated `android/Kimi-Test.code-workspace` is retained locally and
+   excluded from Git. The signed 0.9.12+27 candidate and source-snapshot evidence
+   remain preserved locally; generated APKs/private signing/runtime data are
+   excluded from the source commit.
 2. **Close targeted APK gaps if needed:** physical lost-ack replay and interrupted claim/confirmation recovery remain unproved; source-level recovery checks exist. Decide with the owner/LAN PM which additional physical checks are necessary before pilot. Do not repeat passed QR/ordinary-Sync UAT without a specific reason. The enlarged-QR visual recheck was expressly skipped, not passed.
 3. **Complete LAN office gates:** LAN owns clean Windows Administrator installation, machine approval, service boot/restart, trusted production browser/phone certificates, reserved-address/subnet/firewall behavior, protected backup/restore, safe update procedure if in release scope, package exclusion review and office acceptance. See LAN [release status](../../LAN/docs/LAN_VERIFICATION_AND_RELEASE_STATUS.md). Implemented helpers and synthetic tests are not proof of those actual office steps.
 4. **Prepare field phones:** verify device passcodes, signed APK identity/update path, local worker accounts and authorized fresh QR enrollment to the office backend. The existing home-test pairing must not be treated as an office connection. Worker-phone readiness is a joint rollout task: APK/device preparation plus LAN assistant enrollment and reachable service.

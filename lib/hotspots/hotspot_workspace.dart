@@ -22,11 +22,13 @@ import '../sync/qr_pairing_scanner_page.dart';
 import '../sync/debug_dashboard_access_check.dart';
 import 'location_service.dart';
 import 'new_hotspot_form.dart';
+import 'today_home.dart';
 
 enum _Page {
   home,
   list,
   create,
+  hotspotSaved,
   detail,
   encounter,
   summary,
@@ -74,9 +76,16 @@ class _HotspotWorkspaceState extends State<HotspotWorkspace> {
   _Page _page = _Page.home;
   List<data.Row> _rows = [];
   data.Row? _selected;
+  _Page _entryOrigin = _Page.detail;
+  String? _savedHotspotId, _savedHotspotError;
+  bool _savedHotspotLoading = false;
   data.Row? _selectedRecord;
   List<data.Row> _records = [];
   data.Row? _summary;
+  data.Row? _homeSummary, _homeSyncStatus;
+  bool _homeLoading = true;
+  String? _homeError;
+  int _homeQuery = 0;
   data.Row? _syncStatus;
   List<data.Row> _pendingChanges = [];
   bool _loading = false;
@@ -112,6 +121,54 @@ class _HotspotWorkspaceState extends State<HotspotWorkspace> {
     super.initState();
     widget.session.addListener(_invalidateReviewOnLock);
     unawaited(_resumeInitialTrust());
+    unawaited(_loadHome());
+  }
+
+  Future<void> _loadHome() async {
+    if (widget.session.currentWorkerId == null || _page != _Page.home) return;
+    final query = ++_homeQuery;
+    final token = _repository.sessionToken;
+    setState(() {
+      _homeLoading = true;
+      _homeError = null;
+    });
+    try {
+      // Local reads only. Do not use the connection/Sync loaders for Home.
+      final rows = await Future.wait([
+        _repository.todaySummary(),
+        _repository.syncStatus(),
+      ]);
+      if (!mounted || query != _homeQuery || _page != _Page.home) return;
+      if (_repository.sessionToken != token) {
+        setState(() {
+          _homeLoading = false;
+          _homeSummary = null;
+          _homeSyncStatus = null;
+          _homeError = 'Refresh today’s totals after unlocking.';
+        });
+        return;
+      }
+      setState(() {
+        _homeSummary = rows[0];
+        _homeSyncStatus = rows[1];
+        _homeLoading = false;
+      });
+    } catch (_) {
+      if (!mounted || query != _homeQuery || _page != _Page.home) return;
+      setState(() {
+        _homeLoading = false;
+        _homeSummary = null;
+        _homeSyncStatus = null;
+        _homeError =
+            'Unable to load today’s totals. You can still add records.';
+      });
+    }
+  }
+
+  void _openHome() {
+    widget.session.activity();
+    setState(() => _page = _Page.home);
+    unawaited(_loadHome());
   }
 
   InitialCertificateTrust get _initialTrust => InitialCertificateTrust(
@@ -152,6 +209,7 @@ class _HotspotWorkspaceState extends State<HotspotWorkspace> {
     if (widget.session.currentWorkerId != null &&
         _page != _Page.certificateRenewal) {
       unawaited(_resumeInitialTrust());
+      if (_page == _Page.home) unawaited(_loadHome());
     }
     if (widget.session.currentWorkerId == null) _syncControl?.stop();
     if (_reviewedPlan != null &&
@@ -172,6 +230,7 @@ class _HotspotWorkspaceState extends State<HotspotWorkspace> {
     _reviewedPlan = null;
     unawaited(SyntheticReviewExport.clear());
     _query++;
+    _homeQuery++;
     _search.dispose();
     super.dispose();
   }
@@ -207,18 +266,74 @@ class _HotspotWorkspaceState extends State<HotspotWorkspace> {
     _load();
   }
 
+  void _openEntry(data.Row hotspot, {required _Page origin}) {
+    if (widget.session.currentWorkerId == null) return;
+    widget.session.activity();
+    setState(() {
+      _selected = hotspot;
+      _entryOrigin = origin;
+      _page = _Page.encounter;
+    });
+  }
+
+  Future<void> _showSavedHotspot(String id) async {
+    final token = _repository.sessionToken;
+    setState(() {
+      _page = _Page.hotspotSaved;
+      _savedHotspotId = id;
+      _selected = null;
+      _savedHotspotLoading = true;
+      _savedHotspotError = null;
+    });
+    try {
+      // Read back the existing saved record; never create it again for this UI.
+      final rows = await _repository.hotspots();
+      if (!mounted || _page != _Page.hotspotSaved || _savedHotspotId != id) {
+        return;
+      }
+      if (_repository.sessionToken != token) {
+        throw StateError('Worker session changed');
+      }
+      final hotspot = rows.firstWhere((row) => row['hotspot_id'] == id);
+      setState(() {
+        _selected = hotspot;
+        _savedHotspotLoading = false;
+      });
+    } catch (_) {
+      if (!mounted || _page != _Page.hotspotSaved || _savedHotspotId != id) {
+        return;
+      }
+      setState(() {
+        _savedHotspotLoading = false;
+        _savedHotspotError =
+            'The hotspot was saved, but its details could not be loaded. '
+            'Retry or return to your hotspots.';
+      });
+    }
+  }
+
   void _back() {
     if (_syncControl != null || _renewalRunning) return;
     if (_page == _Page.list ||
         _page == _Page.summary ||
         _page == _Page.records ||
         _page == _Page.sync) {
-      setState(() => _page = _Page.home);
+      _openHome();
     } else if (_page == _Page.pendingChanges ||
         _page == _Page.certificateRenewal) {
       _openSyncStatus();
     } else if (_page == _Page.recordDetail) {
       _openRecords();
+    } else if (_page == _Page.editRecord) {
+      setState(() => _page = _Page.recordDetail);
+    } else if (_page == _Page.hotspotSaved) {
+      _list(saved: true);
+    } else if (_page == _Page.encounter) {
+      if (_entryOrigin == _Page.list) {
+        _list();
+      } else {
+        setState(() => _page = _entryOrigin);
+      }
     } else {
       _list();
     }
@@ -680,8 +795,12 @@ class _HotspotWorkspaceState extends State<HotspotWorkspace> {
   Widget build(BuildContext context) => PopScope(
     canPop:
         _page == _Page.home || widget.session.locked || widget.session.hidden,
-    onPopInvokedWithResult: (didPop, _) {
-      if (!didPop) _back();
+    // Forms handle system Back with the same saving guard as their Back arrow.
+    onPopInvokedWithResult: switch (_page) {
+      _Page.create || _Page.encounter || _Page.editRecord => null,
+      _ => (didPop, _) {
+        if (!didPop) _back();
+      },
     },
     child: switch (_page) {
       _Page.home => _home(context),
@@ -690,15 +809,16 @@ class _HotspotWorkspaceState extends State<HotspotWorkspace> {
         repository: _repository,
         session: widget.session,
         location: widget.location,
-        onSaved: () => _list(saved: true),
+        onSaved: (id) => unawaited(_showSavedHotspot(id)),
         onBack: _back,
       ),
+      _Page.hotspotSaved => _savedHotspotPage(context),
       _Page.detail => _detail(context),
       _Page.encounter => EncounterForm(
         repository: _repository,
         session: widget.session,
         hotspot: _selected!,
-        onBack: () => setState(() => _page = _Page.detail),
+        onBack: _back,
       ),
       _Page.summary => _summaryPage(context),
       _Page.records => _recordsPage(context),
@@ -711,7 +831,7 @@ class _HotspotWorkspaceState extends State<HotspotWorkspace> {
           'name': _selectedRecord!['hotspot_name'],
         },
         initialRecord: _selectedRecord,
-        onBack: () => setState(() => _page = _Page.recordDetail),
+        onBack: _back,
         onSaved: _openRecords,
       ),
       _Page.sync => _syncPage(context),
@@ -728,20 +848,104 @@ class _HotspotWorkspaceState extends State<HotspotWorkspace> {
     },
   );
 
-  Widget _footer() => SafeArea(
-    child: Padding(
-      padding: const EdgeInsets.all(16),
-      child: Text(
-        'Signed in as ${widget.session.worker!.username}',
-        textAlign: TextAlign.center,
+  int? get _primaryIndex => switch (_page) {
+    _Page.home => 0,
+    _Page.list => 1,
+    _Page.records => 2,
+    _Page.sync => 3,
+    _ => null,
+  };
+
+  bool get _navigationBusy =>
+      _syncControl != null ||
+      _renewalRunning ||
+      _preparingBatches ||
+      _testActionRunning ||
+      _checkingDashboardAccess;
+
+  void _selectPrimary(int index) {
+    if (_navigationBusy || index == _primaryIndex) return;
+    widget.session.activity();
+    switch (index) {
+      case 0:
+        _openHome();
+      case 1:
+        _list();
+      case 2:
+        unawaited(_openRecords());
+      case 3:
+        unawaited(_openSyncStatus());
+    }
+  }
+
+  Widget _footer() {
+    final index = _primaryIndex;
+    return SafeArea(
+      top: false,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Padding(
+            padding: EdgeInsets.all(index == null ? 16 : 8),
+            child: Text(
+              'Signed in as ${widget.session.worker!.username}',
+              style: index == null
+                  ? null
+                  : Theme.of(context).textTheme.bodySmall,
+              textAlign: TextAlign.center,
+            ),
+          ),
+          if (index != null)
+            NavigationBar(
+              key: const ValueKey('main-navigation'),
+              selectedIndex: index,
+              onDestinationSelected: _selectPrimary,
+              destinations: [
+                NavigationDestination(
+                  key: const ValueKey('open-today-home'),
+                  enabled: !_navigationBusy,
+                  icon: const Icon(Icons.home_outlined),
+                  selectedIcon: const Icon(Icons.home),
+                  label: 'Today',
+                ),
+                NavigationDestination(
+                  key: const ValueKey('open-hotspots'),
+                  enabled: !_navigationBusy,
+                  icon: const Icon(Icons.location_on_outlined),
+                  selectedIcon: const Icon(Icons.location_on),
+                  label: 'Hotspots',
+                ),
+                NavigationDestination(
+                  key: const ValueKey('open-today-records'),
+                  enabled: !_navigationBusy,
+                  icon: const Icon(Icons.receipt_long_outlined),
+                  selectedIcon: const Icon(Icons.receipt_long),
+                  label: 'Records',
+                ),
+                NavigationDestination(
+                  key: const ValueKey('open-sync-status'),
+                  enabled: !_navigationBusy,
+                  icon: const Icon(Icons.sync_outlined),
+                  selectedIcon: const Icon(Icons.sync),
+                  label: 'Sync',
+                ),
+              ],
+            ),
+        ],
       ),
-    ),
-  );
+    );
+  }
 
   Widget _home(BuildContext context) => Scaffold(
     appBar: AppBar(
       title: const Text('ANSVK Outreach'),
       actions: [
+        IconButton(
+          key: const ValueKey('refresh-today-home'),
+          tooltip: 'Refresh today',
+          onPressed: _homeLoading ? null : _loadHome,
+          icon: const Icon(Icons.refresh),
+        ),
         IconButton(
           tooltip: 'Lock app',
           onPressed: widget.session.lock,
@@ -754,51 +958,15 @@ class _HotspotWorkspaceState extends State<HotspotWorkspace> {
         ),
       ],
     ),
-    body: Center(
-      child: Padding(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Icon(Icons.place_outlined, size: 56),
-            const SizedBox(height: 20),
-            const Text('You are signed in', style: TextStyle(fontSize: 24)),
-            const SizedBox(height: 12),
-            const Text(
-              'Choose a hotspot or add a new one.',
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 24),
-            FilledButton.icon(
-              key: const ValueKey('open-hotspots'),
-              onPressed: _list,
-              icon: const Icon(Icons.location_on_outlined),
-              label: const Text('Hotspots'),
-            ),
-            const SizedBox(height: 12),
-            OutlinedButton.icon(
-              key: const ValueKey('open-daily-summary'),
-              onPressed: _openSummary,
-              icon: const Icon(Icons.summarize_outlined),
-              label: const Text('Daily summary'),
-            ),
-            const SizedBox(height: 12),
-            OutlinedButton.icon(
-              key: const ValueKey('open-today-records'),
-              onPressed: _openRecords,
-              icon: const Icon(Icons.receipt_long_outlined),
-              label: const Text("Today's records"),
-            ),
-            const SizedBox(height: 12),
-            OutlinedButton.icon(
-              key: const ValueKey('open-sync-status'),
-              onPressed: _openSyncStatus,
-              icon: const Icon(Icons.sync_outlined),
-              label: const Text('Sync status'),
-            ),
-          ],
-        ),
-      ),
+    body: TodayHome(
+      summary: _homeSummary,
+      syncStatus: _homeSyncStatus,
+      loading: _homeLoading,
+      error: _homeError,
+      onRefresh: _loadHome,
+      onAddClient: _list,
+      onFullSummary: _openSummary,
+      onSync: _openSyncStatus,
     ),
     bottomNavigationBar: _footer(),
   );
@@ -865,17 +1033,52 @@ class _HotspotWorkspaceState extends State<HotspotWorkspace> {
                     itemBuilder: (context, index) {
                       final row = _rows[index];
                       final peers = (row['peers'] as List).join(', ');
-                      return ListTile(
-                        key: ValueKey('hotspot-${row['hotspot_id']}'),
-                        title: Text(row['name'] as String),
-                        subtitle: Text(
-                          peers.isEmpty ? 'No assigned peers' : peers,
-                        ),
-                        trailing: const Icon(Icons.chevron_right),
-                        onTap: () => setState(() {
-                          _selected = row;
-                          _page = _Page.detail;
-                        }),
+                      return Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          ListTile(
+                            key: ValueKey('hotspot-${row['hotspot_id']}'),
+                            title: Text(row['name'] as String),
+                            subtitle: Text(
+                              peers.isEmpty ? 'No assigned peers' : peers,
+                            ),
+                            trailing: const Icon(Icons.chevron_right),
+                            onTap: () => setState(() {
+                              _selected = row;
+                              _page = _Page.detail;
+                            }),
+                          ),
+                          Padding(
+                            padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+                            child: Wrap(
+                              spacing: 8,
+                              runSpacing: 4,
+                              children: [
+                                FilledButton.icon(
+                                  key: ValueKey(
+                                    'add-client-${row['hotspot_id']}',
+                                  ),
+                                  onPressed: () =>
+                                      _openEntry(row, origin: _Page.list),
+                                  icon: const Icon(
+                                    Icons.person_add_alt_1_outlined,
+                                  ),
+                                  label: const Text('Add client'),
+                                ),
+                                TextButton(
+                                  key: ValueKey(
+                                    'hotspot-details-${row['hotspot_id']}',
+                                  ),
+                                  onPressed: () => setState(() {
+                                    _selected = row;
+                                    _page = _Page.detail;
+                                  }),
+                                  child: const Text('Details'),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
                       );
                     },
                   ),
@@ -938,7 +1141,7 @@ class _HotspotWorkspaceState extends State<HotspotWorkspace> {
           const SizedBox(height: 24),
           FilledButton.icon(
             key: const ValueKey('open-client-entry'),
-            onPressed: () => setState(() => _page = _Page.encounter),
+            onPressed: () => _openEntry(row, origin: _Page.detail),
             icon: const Icon(Icons.person_add_alt_1_outlined),
             label: const Text('Enter client record'),
           ),
@@ -947,6 +1150,59 @@ class _HotspotWorkspaceState extends State<HotspotWorkspace> {
       bottomNavigationBar: _footer(),
     );
   }
+
+  Widget _savedHotspotPage(BuildContext context) => Scaffold(
+    appBar: AppBar(
+      title: const Text('Hotspot saved'),
+      leading: BackButton(onPressed: _back),
+    ),
+    body: ListView(
+      padding: const EdgeInsets.all(24),
+      children: [
+        Icon(
+          Icons.check_circle_outline,
+          size: 48,
+          color: Theme.of(context).colorScheme.primary,
+        ),
+        const SizedBox(height: 16),
+        if (_selected != null)
+          Text(
+            _selected!['name'] as String,
+            style: Theme.of(context).textTheme.headlineSmall,
+          ),
+        const SizedBox(height: 8),
+        const Text('Hotspot saved on this phone.'),
+        const SizedBox(height: 20),
+        if (_savedHotspotLoading)
+          const Center(child: CircularProgressIndicator()),
+        if (_savedHotspotError != null) ...[
+          Semantics(liveRegion: true, child: Text(_savedHotspotError!)),
+          TextButton(
+            onPressed: () => _showSavedHotspot(_savedHotspotId!),
+            child: const Text('Retry'),
+          ),
+        ],
+        FilledButton.icon(
+          key: const ValueKey('add-client-here'),
+          onPressed: _selected == null || _savedHotspotLoading
+              ? null
+              : () => _openEntry(_selected!, origin: _Page.hotspotSaved),
+          icon: const Icon(Icons.person_add_alt_1_outlined),
+          label: const Padding(
+            padding: EdgeInsets.symmetric(vertical: 12),
+            child: Text('Add client here'),
+          ),
+        ),
+        const SizedBox(height: 12),
+        OutlinedButton(
+          key: const ValueKey('return-to-hotspots'),
+          onPressed: () => _list(saved: true),
+          child: const Text('Return to hotspot list'),
+        ),
+      ],
+    ),
+    bottomNavigationBar: _footer(),
+  );
 
   Widget _recordsPage(BuildContext context) => Scaffold(
     appBar: AppBar(
@@ -1037,6 +1293,18 @@ class _HotspotWorkspaceState extends State<HotspotWorkspace> {
           ),
           const SizedBox(height: 4),
           Text("${record['hotspot_name']} - ${record['visit_date']}"),
+          const SizedBox(height: 12),
+          FilledButton.icon(
+            key: const ValueKey('edit-record'),
+            onPressed: _deletingRecord
+                ? null
+                : () => setState(() => _page = _Page.editRecord),
+            icon: const Icon(Icons.edit_outlined),
+            label: const Padding(
+              padding: EdgeInsets.all(12),
+              child: Text('Edit record'),
+            ),
+          ),
           const SizedBox(height: 20),
           _summarySection(context, 'Client', {
             'Type': _recordKind(record),
@@ -1077,18 +1345,6 @@ class _HotspotWorkspaceState extends State<HotspotWorkspace> {
             'Remark': _text(record['remark']),
           }),
           const SizedBox(height: 24),
-          FilledButton.icon(
-            key: const ValueKey('edit-record'),
-            onPressed: _deletingRecord
-                ? null
-                : () => setState(() => _page = _Page.editRecord),
-            icon: const Icon(Icons.edit_outlined),
-            label: const Padding(
-              padding: EdgeInsets.all(12),
-              child: Text('Edit record'),
-            ),
-          ),
-          const SizedBox(height: 12),
           OutlinedButton.icon(
             key: const ValueKey('delete-record'),
             onPressed: _deletingRecord ? null : _deleteSelectedRecord,
@@ -1232,17 +1488,68 @@ class _HotspotWorkspaceState extends State<HotspotWorkspace> {
           : ListView(
               padding: const EdgeInsets.all(20),
               children: [
-                Text(
-                  'Desktop connection',
-                  style: Theme.of(context).textTheme.headlineSmall,
+                Card.outlined(
+                  child: Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Desktop connection',
+                          style: Theme.of(context).textTheme.titleMedium,
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          _syncStatus?['dashboard_status'] == 'Paired'
+                              ? 'Phone paired with dashboard'
+                              : 'Phone not paired with dashboard',
+                          key: const ValueKey('sync-pairing-status'),
+                          style: Theme.of(context).textTheme.titleLarge,
+                        ),
+                        const SizedBox(height: 8),
+                        const Text(
+                          'Pairing status does not confirm that the dashboard is reachable.',
+                        ),
+                      ],
+                    ),
+                  ),
                 ),
-                const SizedBox(height: 8),
+                const SizedBox(height: 16),
+                Row(
+                  children: [
+                    const Expanded(child: Text('Pending changes')),
+                    Text(
+                      ((_syncStatus?['pending_operations'] as num?) ?? 0)
+                          .toInt()
+                          .toString(),
+                      style: Theme.of(context).textTheme.titleLarge,
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 16),
                 Text(
-                  _syncStatus?['dashboard_status'] == 'Paired'
-                      ? 'This phone is paired with the dashboard. Your records remain saved on this phone.'
-                      : 'New connections will use QR pairing. Your records remain saved on this phone.',
+                  _lastSuccessfulSyncLabel(context),
+                  key: const ValueKey('sync-last-success'),
                 ),
                 const SizedBox(height: 12),
+                Card(
+                  child: Padding(
+                    padding: EdgeInsets.all(12),
+                    child: Text(
+                      SyntheticReviewExport.enabled
+                          ? 'Synthetic test: prepare and review one batch, then send only after laptop approval.'
+                          : 'Tap Sync while connected to the office network. Your pending changes are sent securely to the dashboard.',
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 20),
+                if (_syncStatus?['dashboard_status'] != 'Paired') ...[
+                  const Text(
+                    'To connect a new phone, scan the QR code shown by the data assistant on the dashboard.',
+                    key: ValueKey('qr-pairing-pending'),
+                  ),
+                  const SizedBox(height: 12),
+                ],
                 if (_syncStatus?['dashboard_status'] != 'Paired') ...[
                   FilledButton.icon(
                     key: const ValueKey('scan-dashboard-qr'),
@@ -1270,69 +1577,7 @@ class _HotspotWorkspaceState extends State<HotspotWorkspace> {
                     ),
                     const SizedBox(height: 12),
                   ],
-                  OutlinedButton.icon(
-                    key: const ValueKey('open-certificate-renewal'),
-                    onPressed:
-                        _syncControl != null ||
-                            _preparingBatches ||
-                            _testActionRunning ||
-                            _checkingDashboardAccess
-                        ? null
-                        : _openCertificateRenewal,
-                    icon: const Icon(Icons.verified_user_outlined),
-                    label: const Text('Certificate renewal'),
-                  ),
-                  const SizedBox(height: 12),
                 ],
-                if (kDebugMode &&
-                    _syncStatus?['dashboard_status'] == 'Paired') ...[
-                  OutlinedButton.icon(
-                    key: const ValueKey('check-dashboard-access'),
-                    onPressed: _checkingDashboardAccess || _syncControl != null
-                        ? null
-                        : _checkDashboardAccess,
-                    icon: const Icon(Icons.wifi_tethering_outlined),
-                    label: Padding(
-                      padding: const EdgeInsets.all(12),
-                      child: Text(
-                        _checkingDashboardAccess
-                            ? 'Checking dashboard access...'
-                            : 'Check dashboard access (test)',
-                      ),
-                    ),
-                  ),
-                  if (_dashboardAccessMessage != null) ...[
-                    const SizedBox(height: 12),
-                    Text(
-                      _dashboardAccessMessage!,
-                      key: const ValueKey('dashboard-access-message'),
-                    ),
-                  ],
-                  const SizedBox(height: 12),
-                ],
-                Card(
-                  child: Padding(
-                    padding: EdgeInsets.all(12),
-                    child: Text(
-                      SyntheticReviewExport.enabled
-                          ? 'Synthetic test: prepare and review one batch, then send only after laptop approval.'
-                          : 'Tap Sync while connected to the office network. Your pending changes are sent securely to the dashboard.',
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 20),
-                Row(
-                  children: [
-                    const Expanded(child: Text('Pending changes')),
-                    Text(
-                      ((_syncStatus?['pending_operations'] as num?) ?? 0)
-                          .toInt()
-                          .toString(),
-                      style: Theme.of(context).textTheme.titleLarge,
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 16),
                 if (!SyntheticReviewExport.enabled) ...[
                   FilledButton.icon(
                     key: const ValueKey('normal-sync'),
@@ -1359,145 +1604,30 @@ class _HotspotWorkspaceState extends State<HotspotWorkspace> {
                     ),
                   ],
                   if (_normalSyncMessage != null)
-                    Text(
-                      _normalSyncMessage!,
-                      key: const ValueKey('normal-sync-message'),
+                    Semantics(
+                      liveRegion: true,
+                      child: Text(
+                        _normalSyncMessage!,
+                        key: const ValueKey('normal-sync-message'),
+                      ),
                     ),
                   const SizedBox(height: 16),
                 ],
-                OutlinedButton.icon(
-                  key: const ValueKey('prepare-sync-batches'),
-                  onPressed: _preparingBatches || _syncControl != null
-                      ? null
-                      : _prepareSyncBatches,
-                  icon: const Icon(Icons.fact_check_outlined),
-                  label: Padding(
-                    padding: const EdgeInsets.all(12),
-                    child: Text(
-                      _preparingBatches
-                          ? 'Preparing changes...'
-                          : 'Prepare changes locally',
-                    ),
+                if (_syncStatus?['dashboard_status'] == 'Paired') ...[
+                  OutlinedButton.icon(
+                    key: const ValueKey('open-certificate-renewal'),
+                    onPressed:
+                        _syncControl != null ||
+                            _preparingBatches ||
+                            _testActionRunning ||
+                            _checkingDashboardAccess
+                        ? null
+                        : _openCertificateRenewal,
+                    icon: const Icon(Icons.verified_user_outlined),
+                    label: const Text('Certificate renewal'),
                   ),
-                ),
-                if (_batchPreparationMessage != null) ...[
                   const SizedBox(height: 12),
-                  Text(
-                    _batchPreparationMessage!,
-                    key: const ValueKey('batch-preparation-message'),
-                  ),
                 ],
-                if (_batchPreparation != null) ...[
-                  const SizedBox(height: 12),
-                  _summarySection(
-                    context,
-                    'Local preparation',
-                    _batchPreparation!,
-                  ),
-                ],
-                if (_syncReviewManifest != null) ...[
-                  const SizedBox(height: 12),
-                  _syncReviewCard(_syncReviewManifest!),
-                  if (SyntheticReviewExport.enabled) ...[
-                    const Text(
-                      'Synthetic test only. Send after the laptop approves this exact batch.',
-                    ),
-                    OutlinedButton(
-                      onPressed: _testActionRunning
-                          ? null
-                          : () => _reviewedTestAction(send: false),
-                      child: const Text('Prepare private USB review file'),
-                    ),
-                    FilledButton(
-                      onPressed: _testActionRunning
-                          ? null
-                          : () => _reviewedTestAction(send: true),
-                      child: const Text('Send reviewed test batch'),
-                    ),
-                  ],
-                ],
-                if (_testActionMessage != null) Text(_testActionMessage!),
-                const SizedBox(height: 20),
-                _summarySection(context, 'Connection', {
-                  'Status': _text(_syncStatus?['dashboard_status']),
-                  'Dashboard': _text(_syncStatus?['dashboard_name']),
-                  'Address': _text(_syncStatus?['dashboard_url']),
-                  'Paired at': _text(_syncStatus?['paired_at']),
-                  'Pairing prepared at': _text(
-                    _syncStatus?['pairing_prepared_at'],
-                  ),
-                  'Certificate fingerprint': _text(
-                    _syncStatus?['certificate_fingerprint_hint'],
-                  ),
-                  'Last successful sync': _text(
-                    _syncStatus?['last_successful_sync_at'],
-                  ),
-                }),
-                const SizedBox(height: 20),
-                _summarySection(context, 'Sync readiness', {
-                  'Dashboard address saved': _yesNo(
-                    _hasText(_syncStatus?['dashboard_url']),
-                  ),
-                  'Pairing code saved': _yesNo(
-                    _syncStatus?['pairing_code_saved'] == 1,
-                  ),
-                  'Certificate fingerprint saved': _yesNo(
-                    _hasText(_syncStatus?['certificate_fingerprint_hint']),
-                  ),
-                  'Ready to request pairing': _yesNo(
-                    _hasText(_syncStatus?['dashboard_url']) &&
-                        _syncStatus?['pairing_code_saved'] == 1 &&
-                        _hasText(_syncStatus?['certificate_fingerprint_hint']),
-                  ),
-                  'Dashboard paired': _yesNo(
-                    _syncStatus?['dashboard_status'] == 'Paired',
-                  ),
-                  'Ready to sync': SyntheticReviewExport.enabled
-                      ? 'Test only — requires laptop batch approval'
-                      : _yesNo(_syncStatus?['dashboard_status'] == 'Paired'),
-                }),
-                const SizedBox(height: 20),
-                _summarySection(context, 'Retention safety', {
-                  'Keep days on phone': _syncValue('retention_keep_days'),
-                  'Old client records': _syncValue('old_client_records'),
-                  'Held without complete sync proof': _syncValue(
-                    'old_client_records_held_unsynced',
-                  ),
-                  'Eligible after acknowledgement': _syncValue(
-                    'old_client_records_eligible_after_ack',
-                  ),
-                  'Cleanup enabled': _yesNo(
-                    _syncStatus?['retention_cleanup_enabled'] == 1,
-                  ),
-                  'Last retention check': _text(
-                    _syncStatus?['retention_checked_at'],
-                  ),
-                  'Last cleanup': _text(_syncStatus?['retention_cleanup_at']),
-                  'Eligible in last check': _syncValue(
-                    'retention_last_eligible',
-                  ),
-                  'Removed in last check': _syncValue('retention_last_removed'),
-                  'Held in last check': _syncValue('retention_last_held'),
-                  'Retention cutoff date': _text(
-                    _syncStatus?['retention_cutoff_day'],
-                  ),
-                }),
-                const SizedBox(height: 20),
-                _summarySection(context, 'Pending details', {
-                  'Worker changes': _syncValue('pending_workers'),
-                  'Hotspot changes': _syncValue('pending_hotspots'),
-                  'Client record changes': _syncValue('pending_encounters'),
-                  'Creates': _syncValue('pending_creates'),
-                  'Updates': _syncValue('pending_updates'),
-                  'Deletes': _syncValue('pending_deletes'),
-                }),
-                const SizedBox(height: 20),
-                _summarySection(context, 'App identity', {
-                  'Project': _text(_syncStatus?['project_name']),
-                  'Project ID': _text(_syncStatus?['project_id']),
-                  'Device ID': _shortDeviceId(_syncStatus?['device_id']),
-                }),
-                const SizedBox(height: 24),
                 OutlinedButton.icon(
                   key: const ValueKey('view-pending-changes'),
                   onPressed: _syncControl != null ? null : _openPendingChanges,
@@ -1508,9 +1638,138 @@ class _HotspotWorkspaceState extends State<HotspotWorkspace> {
                   ),
                 ),
                 const SizedBox(height: 12),
-                const Text(
-                  'To connect a new phone, scan the QR code shown by the data assistant on the dashboard.',
-                  key: ValueKey('qr-pairing-pending'),
+                if (SyntheticReviewExport.enabled)
+                  ..._syncPreparationWidgets(context),
+                ExpansionTile(
+                  key: const ValueKey('sync-technical-details'),
+                  maintainState: true,
+                  tilePadding: EdgeInsets.zero,
+                  title: const Text(
+                    'Technical details',
+                    key: ValueKey('sync-technical-toggle'),
+                  ),
+                  subtitle: const Text(
+                    'Connection, pending changes and phone cleanup',
+                  ),
+                  children: [
+                    if (kDebugMode &&
+                        _syncStatus?['dashboard_status'] == 'Paired') ...[
+                      OutlinedButton.icon(
+                        key: const ValueKey('check-dashboard-access'),
+                        onPressed:
+                            _checkingDashboardAccess || _syncControl != null
+                            ? null
+                            : _checkDashboardAccess,
+                        icon: const Icon(Icons.wifi_tethering_outlined),
+                        label: Padding(
+                          padding: const EdgeInsets.all(12),
+                          child: Text(
+                            _checkingDashboardAccess
+                                ? 'Checking dashboard access...'
+                                : 'Check dashboard access (test)',
+                          ),
+                        ),
+                      ),
+                      if (_dashboardAccessMessage != null) ...[
+                        const SizedBox(height: 12),
+                        Text(
+                          _dashboardAccessMessage!,
+                          key: const ValueKey('dashboard-access-message'),
+                        ),
+                      ],
+                      const SizedBox(height: 12),
+                    ],
+                    if (!SyntheticReviewExport.enabled)
+                      ..._syncPreparationWidgets(context),
+                    _syncDetailSection(context, 'Connection', {
+                      'Status': _text(_syncStatus?['dashboard_status']),
+                      'Dashboard': _text(_syncStatus?['dashboard_name']),
+                      'Address': _text(_syncStatus?['dashboard_url']),
+                      'Paired at': _text(_syncStatus?['paired_at']),
+                      'Pairing prepared at': _text(
+                        _syncStatus?['pairing_prepared_at'],
+                      ),
+                      'Certificate fingerprint': _text(
+                        _syncStatus?['certificate_fingerprint_hint'],
+                      ),
+                      'Last successful sync': _text(
+                        _syncStatus?['last_successful_sync_at'],
+                      ),
+                    }),
+                    const SizedBox(height: 20),
+                    _syncDetailSection(context, 'Sync readiness', {
+                      'Dashboard address saved': _yesNo(
+                        _hasText(_syncStatus?['dashboard_url']),
+                      ),
+                      'Pairing code saved': _yesNo(
+                        _syncStatus?['pairing_code_saved'] == 1,
+                      ),
+                      'Certificate fingerprint saved': _yesNo(
+                        _hasText(_syncStatus?['certificate_fingerprint_hint']),
+                      ),
+                      'Ready to request pairing': _yesNo(
+                        _hasText(_syncStatus?['dashboard_url']) &&
+                            _syncStatus?['pairing_code_saved'] == 1 &&
+                            _hasText(
+                              _syncStatus?['certificate_fingerprint_hint'],
+                            ),
+                      ),
+                      'Dashboard paired': _yesNo(
+                        _syncStatus?['dashboard_status'] == 'Paired',
+                      ),
+                      'Ready to sync': SyntheticReviewExport.enabled
+                          ? 'Test only — requires laptop batch approval'
+                          : _yesNo(
+                              _syncStatus?['dashboard_status'] == 'Paired',
+                            ),
+                    }),
+                    const SizedBox(height: 20),
+                    _syncDetailSection(context, 'Retention safety', {
+                      'Keep days on phone': _syncValue('retention_keep_days'),
+                      'Old client records': _syncValue('old_client_records'),
+                      'Held without complete sync proof': _syncValue(
+                        'old_client_records_held_unsynced',
+                      ),
+                      'Eligible after acknowledgement': _syncValue(
+                        'old_client_records_eligible_after_ack',
+                      ),
+                      'Cleanup enabled': _yesNo(
+                        _syncStatus?['retention_cleanup_enabled'] == 1,
+                      ),
+                      'Last retention check': _text(
+                        _syncStatus?['retention_checked_at'],
+                      ),
+                      'Last cleanup': _text(
+                        _syncStatus?['retention_cleanup_at'],
+                      ),
+                      'Eligible in last check': _syncValue(
+                        'retention_last_eligible',
+                      ),
+                      'Removed in last check': _syncValue(
+                        'retention_last_removed',
+                      ),
+                      'Held in last check': _syncValue('retention_last_held'),
+                      'Retention cutoff date': _text(
+                        _syncStatus?['retention_cutoff_day'],
+                      ),
+                    }),
+                    const SizedBox(height: 20),
+                    _syncDetailSection(context, 'Pending details', {
+                      'Worker changes': _syncValue('pending_workers'),
+                      'Hotspot changes': _syncValue('pending_hotspots'),
+                      'Client record changes': _syncValue('pending_encounters'),
+                      'Creates': _syncValue('pending_creates'),
+                      'Updates': _syncValue('pending_updates'),
+                      'Deletes': _syncValue('pending_deletes'),
+                    }),
+                    const SizedBox(height: 20),
+                    _syncDetailSection(context, 'App identity', {
+                      'Project': _text(_syncStatus?['project_name']),
+                      'Project ID': _text(_syncStatus?['project_id']),
+                      'Device ID': _shortDeviceId(_syncStatus?['device_id']),
+                    }),
+                    const SizedBox(height: 24),
+                  ],
                 ),
                 const SizedBox(height: 12),
               ],
@@ -1518,6 +1777,69 @@ class _HotspotWorkspaceState extends State<HotspotWorkspace> {
     ),
     bottomNavigationBar: _footer(),
   );
+
+  String _lastSuccessfulSyncLabel(BuildContext context) {
+    final stamp = _syncStatus?['last_successful_sync_at'] as String?;
+    if (stamp == null || stamp.isEmpty) return 'No successful sync yet';
+    final parsed = DateTime.tryParse(stamp);
+    if (parsed == null) return 'Last successful sync: $stamp';
+    final local = parsed.toLocal();
+    final format = MaterialLocalizations.of(context);
+    return 'Last successful sync: ${format.formatCompactDate(local)}, '
+        '${format.formatTimeOfDay(TimeOfDay.fromDateTime(local), alwaysUse24HourFormat: MediaQuery.alwaysUse24HourFormatOf(context))}';
+  }
+
+  List<Widget> _syncPreparationWidgets(BuildContext context) => [
+    OutlinedButton.icon(
+      key: const ValueKey('prepare-sync-batches'),
+      onPressed: _preparingBatches || _syncControl != null
+          ? null
+          : _prepareSyncBatches,
+      icon: const Icon(Icons.fact_check_outlined),
+      label: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Text(
+          _preparingBatches
+              ? 'Preparing changes...'
+              : 'Prepare changes locally',
+        ),
+      ),
+    ),
+    if (_batchPreparationMessage != null) ...[
+      const SizedBox(height: 12),
+      Text(
+        _batchPreparationMessage!,
+        key: const ValueKey('batch-preparation-message'),
+      ),
+    ],
+    if (_batchPreparation != null) ...[
+      const SizedBox(height: 12),
+      _syncDetailSection(context, 'Local preparation', _batchPreparation!),
+    ],
+    if (_syncReviewManifest != null) ...[
+      const SizedBox(height: 12),
+      _syncReviewCard(_syncReviewManifest!),
+      if (SyntheticReviewExport.enabled) ...[
+        const Text(
+          'Synthetic test only. Send after the laptop approves this exact batch.',
+        ),
+        OutlinedButton(
+          onPressed: _testActionRunning
+              ? null
+              : () => _reviewedTestAction(send: false),
+          child: const Text('Prepare private USB review file'),
+        ),
+        FilledButton(
+          onPressed: _testActionRunning
+              ? null
+              : () => _reviewedTestAction(send: true),
+          child: const Text('Send reviewed test batch'),
+        ),
+      ],
+    ],
+    if (_testActionMessage != null) Text(_testActionMessage!),
+    const SizedBox(height: 20),
+  ];
 
   Widget _pendingChangesPage(BuildContext context) => Scaffold(
     appBar: AppBar(
@@ -1668,11 +1990,18 @@ class _HotspotWorkspaceState extends State<HotspotWorkspace> {
     ),
   );
 
-  Widget _summarySection(
+  Widget _syncDetailSection(
     BuildContext context,
     String title,
     Map<String, Object> values,
-  ) => DecoratedBox(
+  ) => _summarySection(context, title, values, stacked: true);
+
+  Widget _summarySection(
+    BuildContext context,
+    String title,
+    Map<String, Object> values, {
+    bool stacked = false,
+  }) => DecoratedBox(
     decoration: BoxDecoration(
       border: Border.all(color: Theme.of(context).dividerColor),
       borderRadius: BorderRadius.circular(12),
@@ -1692,15 +2021,27 @@ class _HotspotWorkspaceState extends State<HotspotWorkspace> {
           for (final entry in values.entries)
             Padding(
               padding: const EdgeInsets.symmetric(vertical: 4),
-              child: Row(
-                children: [
-                  Expanded(child: Text(entry.key)),
-                  Text(
-                    entry.value.toString(),
-                    style: const TextStyle(fontWeight: FontWeight.w700),
-                  ),
-                ],
-              ),
+              child: stacked
+                  ? Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(entry.key),
+                        const SizedBox(height: 4),
+                        Text(
+                          entry.value.toString(),
+                          style: const TextStyle(fontWeight: FontWeight.w700),
+                        ),
+                      ],
+                    )
+                  : Row(
+                      children: [
+                        Expanded(child: Text(entry.key)),
+                        Text(
+                          entry.value.toString(),
+                          style: const TextStyle(fontWeight: FontWeight.w700),
+                        ),
+                      ],
+                    ),
             ),
         ],
       ),

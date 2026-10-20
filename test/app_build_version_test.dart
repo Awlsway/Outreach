@@ -11,7 +11,7 @@ void main() {
   test(
     'installed version and build overrides are returned unchanged',
     () async {
-      for (final version in ['0.9.10+25', '0.9.11+26']) {
+      for (final version in ['0.9.10+25', '0.9.11+26', '0.9.12+27']) {
         messenger.setMockMethodCallHandler(AppBuildVersion.channel, (
           call,
         ) async {

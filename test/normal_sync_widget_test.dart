@@ -157,6 +157,10 @@ void main() {
       ) {
         await flush();
       }
+      expect(find.text('Phone paired with dashboard'), findsOneWidget);
+      expect(find.text('No successful sync yet'), findsOneWidget);
+      expect(find.byKey(const ValueKey('prepare-sync-batches')), findsNothing);
+      expect(uploads, 0);
       await tester.scrollUntilVisible(
         find.byKey(const ValueKey('normal-sync')),
         150,
@@ -196,6 +200,12 @@ void main() {
         '2026-09-27T00:00:00.000Z',
       );
       expect(find.text('Send reviewed test batch'), findsNothing);
+      final lastSync = tester.widget<Text>(
+        find.byKey(const ValueKey('sync-last-success')),
+      );
+      expect(lastSync.data, startsWith('Last successful sync: '));
+      expect(lastSync.data, isNot(contains('No successful sync yet')));
+      expect(find.byKey(const ValueKey('prepare-sync-batches')), findsNothing);
       await tester.pumpWidget(const SizedBox());
       session.dispose();
       await tester.runAsync(db.close);
